@@ -63,7 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <>
       <SplashScreen in={!splashDone} />
-      <Box>{children}</Box>
+      {/* Belt-and-suspenders: the splash's opaque overlay should already
+          cover this, but hiding it outright rules out any flash of the
+          header/content on the very first paint before the overlay settles. */}
+      <Box sx={{ visibility: splashDone ? 'visible' : 'hidden' }}>{children}</Box>
     </>
   )
 }

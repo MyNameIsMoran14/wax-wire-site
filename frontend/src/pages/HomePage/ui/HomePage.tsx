@@ -28,7 +28,7 @@ export function HomePage() {
       <Stack sx={{ alignItems: 'center', pt: 2, pb: 8, px: 3, overflow: 'visible' }}>
         <Fade in={mounted} timeout={900} style={delayStyle(mounted, 100)}>
           <Box sx={{ position: 'relative', zIndex: 1, mt: '-330px', mb: '-32px' }}>
-            <VinylRecord size={740} />
+            <VinylRecord size={740} interactive />
           </Box>
         </Fade>
 
