@@ -61,7 +61,7 @@ export function AuthLayout() {
           WAX & WIRE.
         </Typography>
       </Box>
-      <Box key={location.pathname} sx={{ height: '100%', animation: `${fadeIn} 220ms ease` }}>
+      <Box key={location.pathname} sx={{ height: '100%', animation: `${fadeIn} 380ms cubic-bezier(0.22, 1, 0.36, 1)` }}>
         <Outlet />
       </Box>
     </Box>

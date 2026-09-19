@@ -25,7 +25,7 @@ export function RootLayout() {
   const location = useLocation()
 
   return (
-    <Box key={routeGroup(location.pathname)} sx={{ animation: `${fadeIn} 380ms cubic-bezier(0.22, 1, 0.36, 1)` }}>
+    <Box key={routeGroup(location.pathname)} sx={{ animation: `${fadeIn} 600ms cubic-bezier(0.22, 1, 0.36, 1)` }}>
       <Outlet />
     </Box>
   )
