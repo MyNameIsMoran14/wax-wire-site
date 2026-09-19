@@ -17,10 +17,11 @@ export function Header() {
 
   return (
     <AppBar
-      position="relative"
+      position="sticky"
       color="transparent"
       elevation={0}
       sx={{
+        top: 0,
         zIndex: 2,
         bgcolor: 'background.paper',
         borderBottom: '1px solid',
