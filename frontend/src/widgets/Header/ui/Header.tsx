@@ -7,7 +7,17 @@ export function Header() {
   const clearAuth = useAuthStore((s) => s.clearAuth)
 
   return (
-    <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+    <AppBar
+      position="relative"
+      color="transparent"
+      elevation={0}
+      sx={{
+        zIndex: 2,
+        bgcolor: 'background.default',
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+      }}
+    >
       <Toolbar sx={{ px: { xs: 2, md: 8 }, py: 1.5, gap: 4 }}>
         <Typography
           component={RouterLink}

@@ -1,0 +1,1 @@
+export { VinylRecord } from './VinylRecord'
