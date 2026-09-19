@@ -25,7 +25,7 @@ export function Header() {
           variant="h6"
           sx={{ fontWeight: 900, textDecoration: 'none', color: 'text.primary' }}
         >
-          VINYL.
+          WAX&WIRE.
         </Typography>
         <Stack direction="row" spacing={4} sx={{ flexGrow: 1 }}>
           <Button component={RouterLink} to="/catalog" color="inherit">

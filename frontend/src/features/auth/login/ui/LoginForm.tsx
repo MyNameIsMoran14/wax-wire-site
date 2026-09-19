@@ -42,7 +42,14 @@ export function LoginForm() {
         autoComplete="current-password"
         fullWidth
       />
-      <Button type="submit" variant="contained" size="large" loading={login.isPending} fullWidth>
+      <Button
+        type="submit"
+        variant="contained"
+        size="large"
+        loading={login.isPending}
+        fullWidth
+        sx={{ borderRadius: 999 }}
+      >
         Войти
       </Button>
     </Stack>

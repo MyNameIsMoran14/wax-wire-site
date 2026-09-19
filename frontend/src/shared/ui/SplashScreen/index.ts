@@ -1,1 +1,1 @@
-export { SplashScreen } from './SplashScreen'
+export { SPLASH_EXIT_MS, SplashScreen } from './SplashScreen'

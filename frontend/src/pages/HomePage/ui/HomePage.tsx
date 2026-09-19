@@ -1,6 +1,6 @@
-import { Box, Button, Grow, Stack, Typography } from '@mui/material'
-import { useEffect, useState } from 'react'
+import { Box, Button, Fade, Stack, Typography } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
+import { useAppReadyStore } from '@/shared/lib/appReadyStore'
 import { Reveal } from '@/shared/ui/Reveal'
 import { VinylRecord } from '@/shared/ui/VinylRecord'
 import { Header } from '@/widgets/Header'
@@ -12,44 +12,41 @@ const CATEGORIES = [
 ]
 
 // Staggered entrance: each hero element gets a growing delay so the page
-// reveals top-to-bottom instead of popping in all at once.
+// reveals top-to-bottom instead of popping in all at once. Gated on
+// appReady (splash fully finished), not on this component's own mount.
 function delayStyle(mounted: boolean, ms: number) {
   return { transitionDelay: mounted ? `${ms}ms` : '0ms' }
 }
 
 export function HomePage() {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const mounted = useAppReadyStore((s) => s.ready)
 
   return (
     <Stack>
       <Header />
 
       <Stack sx={{ alignItems: 'center', pt: 2, pb: 8, px: 3, overflow: 'visible' }}>
-        <Grow in={mounted} timeout={700}>
-          <Box sx={{ position: 'relative', zIndex: 1, mt: '-250px', mb: '-28px' }}>
-            <VinylRecord size={560} />
+        <Fade in={mounted} timeout={900} style={delayStyle(mounted, 100)}>
+          <Box sx={{ position: 'relative', zIndex: 1, mt: '-330px', mb: '-32px' }}>
+            <VinylRecord size={740} />
           </Box>
-        </Grow>
+        </Fade>
 
-        <Grow in={mounted} timeout={700} style={delayStyle(mounted, 150)}>
+        <Fade in={mounted} timeout={900} style={delayStyle(mounted, 250)}>
           <Stack
             direction="row"
             sx={{ justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: 1100 }}
           >
             <Typography sx={{ fontWeight: 900, fontSize: { xs: 56, md: 96 }, color: 'primary.main', lineHeight: 1 }}>
-              VINYL
+              WAX
             </Typography>
             <Typography sx={{ fontWeight: 900, fontSize: { xs: 56, md: 96 }, color: 'primary.main', lineHeight: 1 }}>
-              SHOP
+              WIRE
             </Typography>
           </Stack>
-        </Grow>
+        </Fade>
 
-        <Grow in={mounted} timeout={700} style={delayStyle(mounted, 300)}>
+        <Fade in={mounted} timeout={900} style={delayStyle(mounted, 400)}>
           <Typography
             variant="body2"
             sx={{
@@ -61,11 +58,11 @@ export function HomePage() {
               whiteSpace: 'pre-line',
             }}
           >
-            {'МАГАЗИН ВИНИЛОВЫХ ПЛАСТИНОК\nВ МОСКВЕ'}
+            {'МАГАЗИН ВИНИЛОВЫХ ПЛАСТИНОК\nВ РОСТОВЕ-НА-ДОНУ'}
           </Typography>
-        </Grow>
+        </Fade>
 
-        <Grow in={mounted} timeout={700} style={delayStyle(mounted, 450)}>
+        <Fade in={mounted} timeout={900} style={delayStyle(mounted, 550)}>
           <Button
             component={RouterLink}
             to="/catalog"
@@ -75,7 +72,7 @@ export function HomePage() {
           >
             В каталог
           </Button>
-        </Grow>
+        </Fade>
       </Stack>
 
       <Stack

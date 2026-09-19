@@ -74,7 +74,15 @@ export function RegisterForm() {
         control={<Checkbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required />}
         label="Согласен с условиями использования"
       />
-      <Button type="submit" variant="contained" size="large" loading={register.isPending} disabled={!agreed} fullWidth>
+      <Button
+        type="submit"
+        variant="contained"
+        size="large"
+        loading={register.isPending}
+        disabled={!agreed}
+        fullWidth
+        sx={{ borderRadius: 999 }}
+      >
         Создать аккаунт
       </Button>
     </Stack>
