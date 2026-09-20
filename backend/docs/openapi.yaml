@@ -50,6 +50,7 @@ info:
     | 403 | `forbidden` | Не хватает роли (например, не admin) |
     | 404 | `not_found`, `product_not_found`, `order_not_found`, `cart_item_not_found` | Ресурс не найден или не принадлежит тебе |
     | 409 | `email_taken`, `cart_empty`, `insufficient_stock` | Конфликт состояния |
+    | 429 | `rate_limit_exceeded` | Слишком много попыток `/auth/login` или `/auth/register` с одного IP — подождать и повторить |
     | 500 | `internal_error` | Ошибка сервера |
 
 servers:
@@ -199,6 +200,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
+    TooManyRequests:
+      description: Слишком много попыток с этого IP — подождать и повторить
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
 
 paths:
   /auth/register:
@@ -228,6 +234,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '400': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /auth/login:
     post:
@@ -254,6 +261,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /auth/refresh:
     post:

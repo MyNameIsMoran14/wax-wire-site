@@ -14,7 +14,7 @@ class Auth
 
     public static function issueAccessToken(array $user): string
     {
-        $config = require __DIR__ . '/../Config/config.php';
+        $config = Config::get();
 
         return jwt_encode([
             'sub' => (int) $user['id'],
@@ -45,7 +45,7 @@ class Auth
             return null;
         }
 
-        $config = require __DIR__ . '/../Config/config.php';
+        $config = Config::get();
         $payload = jwt_decode($token, $config['jwt_secret']);
         if ($payload === null || !isset($payload['sub'])) {
             return null;

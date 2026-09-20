@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Auth;
+use App\Core\RateLimiter;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Validator;
@@ -22,6 +23,8 @@ class AuthController
 
     public function register(Request $request): void
     {
+        $this->enforceRateLimit('register', maxAttempts: 5, windowSeconds: 60);
+
         $data = $request->all();
 
         $errors = Validator::validate($data, [
@@ -48,6 +51,8 @@ class AuthController
 
     public function login(Request $request): void
     {
+        $this->enforceRateLimit('login', maxAttempts: 10, windowSeconds: 60);
+
         $data = $request->all();
 
         $errors = Validator::validate($data, [
@@ -79,14 +84,28 @@ class AuthController
             Response::error('unauthorized', 'Нет refresh-токена', 401);
         }
 
-        $stored = RefreshTokenModel::findValid(Auth::hashRefreshToken($token));
+        $hash = Auth::hashRefreshToken($token);
+        $stored = RefreshTokenModel::findByHash($hash);
+
         if ($stored === null) {
             Response::error('unauthorized', 'Refresh-токен недействителен', 401);
         }
 
+        if ($stored['revoked_at'] !== null) {
+            // This exact token was already rotated away once before. The only
+            // way to see it again is a stolen copy being replayed — kill every
+            // session for this account rather than just rejecting this one request.
+            RefreshTokenModel::revokeAllForUser((int) $stored['user_id']);
+            Response::error('unauthorized', 'Обнаружено повторное использование токена — все сессии завершены', 401);
+        }
+
+        if (strtotime($stored['expires_at']) < time()) {
+            Response::error('unauthorized', 'Refresh-токен истёк', 401);
+        }
+
         // Ротация: старый токен гасим, выдаём новый — чтобы украденный старый
         // токен нельзя было переиспользовать повторно.
-        RefreshTokenModel::revoke(Auth::hashRefreshToken($token));
+        RefreshTokenModel::revoke($hash);
         $user = UserModel::findById((int) $stored['user_id']);
 
         $this->setRefreshCookie($this->issueAndStoreRefreshToken((int) $user['id']));
@@ -151,5 +170,19 @@ class AuthController
             'samesite' => 'Lax',
             // 'secure' => true, // включить, когда будет HTTPS
         ]);
+    }
+
+    // IP-scoped brute-force guard for register/login. Keyed by action so a
+    // burst of registrations doesn't also lock out logins from the same IP.
+    private function enforceRateLimit(string $action, int $maxAttempts, int $windowSeconds): void
+    {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $key = "{$action}:{$ip}";
+
+        if (RateLimiter::tooManyAttempts($key, $maxAttempts, $windowSeconds)) {
+            Response::error('rate_limit_exceeded', 'Слишком много попыток, попробуйте позже', 429);
+        }
+
+        RateLimiter::hit($key);
     }
 }

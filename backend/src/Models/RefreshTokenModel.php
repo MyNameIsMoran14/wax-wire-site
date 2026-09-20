@@ -19,23 +19,29 @@ class RefreshTokenModel
         ]);
     }
 
-    /** Токен по хэшу, только если не отозван и не истёк. */
-    public static function findValid(string $tokenHash): ?array
+    // Returns the row regardless of revoked/expired state — the caller needs
+    // to tell "never existed" apart from "already used" (theft signal) apart
+    // from "just expired".
+    public static function findByHash(string $tokenHash): ?array
     {
-        $row = Database::table('refresh_tokens')->where('token_hash', $tokenHash)->first();
-        if ($row === null || $row['revoked_at'] !== null) {
-            return null;
-        }
-        if (strtotime($row['expires_at']) < time()) {
-            return null;
-        }
-        return $row;
+        return Database::table('refresh_tokens')->where('token_hash', $tokenHash)->first();
     }
 
     public static function revoke(string $tokenHash): void
     {
         Database::table('refresh_tokens')
             ->where('token_hash', $tokenHash)
+            ->update(['revoked_at' => date('c')]);
+    }
+
+    // Called when a refresh token gets presented a second time (it was
+    // already rotated away once before) — that's a strong signal it was
+    // stolen and both the legitimate user and the attacker are using it, so
+    // every session for this account is killed rather than just the one token.
+    public static function revokeAllForUser(int $userId): void
+    {
+        Database::table('refresh_tokens')
+            ->where('user_id', $userId)
             ->update(['revoked_at' => date('c')]);
     }
 }

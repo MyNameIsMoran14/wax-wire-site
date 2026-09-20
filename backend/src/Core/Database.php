@@ -13,7 +13,7 @@ class Database
     public static function connection(): PDO
     {
         if (self::$pdo === null) {
-            $config = require __DIR__ . '/../Config/config.php';
+            $config = Config::get();
 
             self::$pdo = new PDO('sqlite:' . $config['db_path']);
             self::$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
