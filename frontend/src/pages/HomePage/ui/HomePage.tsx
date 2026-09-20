@@ -3,6 +3,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import { useAppReadyStore } from '@/shared/lib/appReadyStore'
 import { Reveal } from '@/shared/ui/Reveal'
 import { VinylRecord } from '@/shared/ui/VinylRecord'
+import { Footer } from '@/widgets/Footer'
 import { Header } from '@/widgets/Header'
 
 const CATEGORIES = [
@@ -91,6 +92,8 @@ export function HomePage() {
           </Reveal>
         ))}
       </Stack>
+
+      <Footer />
     </Stack>
   )
 }

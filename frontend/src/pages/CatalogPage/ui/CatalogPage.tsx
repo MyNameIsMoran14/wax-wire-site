@@ -1,5 +1,6 @@
 import { Stack, Typography } from '@mui/material'
 import { Reveal } from '@/shared/ui/Reveal'
+import { Footer } from '@/widgets/Footer'
 import { Header } from '@/widgets/Header'
 
 export function CatalogPage() {
@@ -16,6 +17,7 @@ export function CatalogPage() {
           </Typography>
         </Stack>
       </Reveal>
+      <Footer />
     </Stack>
   )
 }
