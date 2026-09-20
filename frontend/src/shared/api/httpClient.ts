@@ -73,6 +73,11 @@ export const httpClient = {
   post: <T>(path: string, body?: unknown) => client.post<T>(path, body).then((res) => res.data),
   patch: <T>(path: string, body?: unknown) => client.patch<T>(path, body).then((res) => res.data),
   delete: <T>(path: string) => client.delete<T>(path).then((res) => res.data),
+  // Content-Type must come from the browser (it includes the multipart
+  // boundary) — the instance's default 'application/json' header would
+  // otherwise win and the server couldn't parse the body.
+  postForm: <T>(path: string, formData: FormData) =>
+    client.post<T>(path, formData, { headers: { 'Content-Type': undefined } }).then((res) => res.data),
 }
 
 // Exported so the app bootstrap (AuthProvider) can check for a session

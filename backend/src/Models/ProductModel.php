@@ -99,7 +99,7 @@ class ProductModel
         return $row === false ? null : $row;
     }
 
-    /** Full unpaginated catalog for the admin list view, newest first. */
+    /** Full unpaginated catalog for the admin list view, newest first — the client paginates rendering, not the request. */
     public static function allAdmin(): array
     {
         $stmt = Database::connection()->query(
