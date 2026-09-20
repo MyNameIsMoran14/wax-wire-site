@@ -99,13 +99,23 @@ class AuthController
             Response::error('unauthorized', 'Обнаружено повторное использование токена — все сессии завершены', 401);
         }
 
-        if (strtotime($stored['expires_at']) < time()) {
+        if (strtotime($stored['expires_at']) <= time()) {
             Response::error('unauthorized', 'Refresh-токен истёк', 401);
         }
 
         // Ротация: старый токен гасим, выдаём новый — чтобы украденный старый
-        // токен нельзя было переиспользовать повторно.
-        RefreshTokenModel::revoke($hash);
+        // токен нельзя было переиспользовать повторно. revokeIfActive — это
+        // атомарный "claim": если тот же токен одновременно пришёл из двух
+        // мест (две вкладки, либо ворованная копия), выиграть может только
+        // один запрос — проверка "не отозван ли" и сам отзыв это одна SQL-операция,
+        // а не два отдельных шага с окном для гонки между ними.
+        if (!RefreshTokenModel::revokeIfActive($hash)) {
+            // Проиграли гонку — кто-то другой отозвал этот токен долю секунды
+            // назад. Расцениваем как повторное использование.
+            RefreshTokenModel::revokeAllForUser((int) $stored['user_id']);
+            Response::error('unauthorized', 'Обнаружено повторное использование токена — все сессии завершены', 401);
+        }
+
         $user = UserModel::findById((int) $stored['user_id']);
 
         $this->setRefreshCookie($this->issueAndStoreRefreshToken((int) $user['id']));
@@ -176,13 +186,17 @@ class AuthController
     // burst of registrations doesn't also lock out logins from the same IP.
     private function enforceRateLimit(string $action, int $maxAttempts, int $windowSeconds): void
     {
+        // Note: trusts REMOTE_ADDR as-is, so behind a reverse proxy every
+        // client would share one bucket (the proxy's IP) unless the proxy is
+        // configured to set — and this app is made to trust — a real client
+        // IP header. No such setup here, so left as REMOTE_ADDR: correct for
+        // direct access (how this project actually runs), the proxy case is
+        // out of scope until there's an actual deployment target to match.
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         $key = "{$action}:{$ip}";
 
-        if (RateLimiter::tooManyAttempts($key, $maxAttempts, $windowSeconds)) {
+        if (RateLimiter::hit($key, $maxAttempts, $windowSeconds)) {
             Response::error('rate_limit_exceeded', 'Слишком много попыток, попробуйте позже', 429);
         }
-
-        RateLimiter::hit($key);
     }
 }

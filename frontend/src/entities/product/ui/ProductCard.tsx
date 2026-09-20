@@ -1,4 +1,5 @@
 import { Box, Stack, Typography } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import type { Product } from '../model/types'
 
 interface ProductCardProps {
@@ -8,8 +9,12 @@ interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   return (
     <Stack
+      component={RouterLink}
+      to={`/catalog/${product.id}`}
       spacing={1.5}
       sx={{
+        textDecoration: 'none',
+        color: 'inherit',
         cursor: 'pointer',
         '&:hover .product-card-cover': { opacity: 0.85 },
         '&:hover .product-card-price': { color: '#8C2F27' },
@@ -37,7 +42,7 @@ export function ProductCard({ product }: ProductCardProps) {
           variant="body2"
           sx={{ fontWeight: 600, whiteSpace: 'nowrap', transition: 'color 300ms ease' }}
         >
-          {Number(product.price).toLocaleString('ru-RU')} ₽
+          {Number(product.price).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
         </Typography>
       </Stack>
     </Stack>
