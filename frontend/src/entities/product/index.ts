@@ -1,3 +1,6 @@
-export type { Genre, Product, ProductType } from './model/types'
-export { MOCK_PRODUCTS } from './model/mockProducts'
+export type { Genre, Product, ProductDetail, ProductType, TracklistItem } from './model/types'
+export type { ProductsFilters, ProductsPage, SortOption } from './api/catalogApi'
+export { useProducts } from './model/useProducts'
+export { useProduct } from './model/useProduct'
+export { useGenres } from './model/useGenres'
 export { ProductCard } from './ui/ProductCard'

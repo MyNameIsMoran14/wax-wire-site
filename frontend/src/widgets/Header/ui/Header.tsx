@@ -176,6 +176,21 @@ export function Header() {
                   list: { sx: { p: 1 } },
                 }}
               >
+                {user.role === 'admin' && (
+                  <MenuItem
+                    component={RouterLink}
+                    to="/admin"
+                    onClick={() => setMenuAnchor(null)}
+                    sx={{
+                      borderRadius: 1.5,
+                      fontWeight: 500,
+                      transition: 'background-color 300ms ease, color 300ms ease',
+                      '&:hover': { bgcolor: 'rgba(140,47,39,0.08)', color: '#8C2F27' },
+                    }}
+                  >
+                    Админ-панель
+                  </MenuItem>
+                )}
                 <MenuItem
                   onClick={handleLogout}
                   sx={{

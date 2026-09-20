@@ -1,6 +1,7 @@
 import { Box, Stack, Typography } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
 import { useFavoriteStore } from '@/entities/favorite'
+import { resolveAssetUrl } from '@/shared/config/env'
 import { PulseHeart } from '@/shared/ui/PulseHeart'
 import type { Product } from '../model/types'
 
@@ -33,7 +34,7 @@ export function ProductCard({ product }: ProductCardProps) {
             aspectRatio: '1 / 1',
             bgcolor: 'divider',
             borderRadius: 0.5,
-            backgroundImage: product.coverUrl ? `url(${product.coverUrl})` : undefined,
+            backgroundImage: product.cover_url ? `url(${resolveAssetUrl(product.cover_url)})` : undefined,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             transition: 'opacity 300ms ease',

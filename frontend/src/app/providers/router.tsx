@@ -1,10 +1,12 @@
 import { createBrowserRouter } from 'react-router-dom'
+import { AdminPage } from '@/pages/AdminPage'
 import { CatalogPage } from '@/pages/CatalogPage'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { ProductDetailPage } from '@/pages/ProductDetailPage'
 import { RegisterPage } from '@/pages/RegisterPage'
 import { AuthLayout } from '@/widgets/AuthLayout'
+import { RequireAdmin } from './RequireAdmin'
 import { RootLayout } from './RootLayout'
 
 export const router = createBrowserRouter([
@@ -20,6 +22,10 @@ export const router = createBrowserRouter([
           { path: '/login', element: <LoginPage /> },
           { path: '/register', element: <RegisterPage /> },
         ],
+      },
+      {
+        element: <RequireAdmin />,
+        children: [{ path: '/admin', element: <AdminPage /> }],
       },
     ],
   },

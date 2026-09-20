@@ -5,6 +5,12 @@ export interface Genre {
   name: string
 }
 
+export interface TracklistItem {
+  position: number
+  title: string
+  duration_seconds: number
+}
+
 export interface Product {
   id: number
   title: string
@@ -14,5 +20,11 @@ export interface Product {
   price: string
   stock: number
   year: number | null
-  coverUrl: string | null
+  description: string | null
+  cover_url: string | null
+  created_at: string
+}
+
+export interface ProductDetail extends Product {
+  tracklist: TracklistItem[]
 }

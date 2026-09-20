@@ -579,16 +579,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [title, artist, genre_id, type, price, stock]
+              required: [title, artist, type, price, stock]
               properties:
                 title: { type: string }
                 artist: { type: string }
-                genre_id: { type: integer }
+                genre_id: { type: integer, nullable: true, description: Не указывается для equipment }
                 type: { type: string, enum: [vinyl, cd, equipment] }
                 price: { type: string }
                 stock: { type: integer }
-                year: { type: integer }
-                description: { type: string }
+                year: { type: integer, nullable: true }
+                description: { type: string, nullable: true }
       responses:
         '201':
           description: Создано

@@ -1,9 +1,10 @@
-import { Box, Button, IconButton, Stack, Typography } from '@mui/material'
-import { useMemo, useState } from 'react'
+import { Box, Button, CircularProgress, IconButton, Stack, Typography } from '@mui/material'
+import { useState } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { useCartStore } from '@/entities/cart'
 import { useFavoriteStore } from '@/entities/favorite'
-import { MOCK_PRODUCTS } from '@/entities/product'
+import { useProduct } from '@/entities/product'
+import { resolveAssetUrl } from '@/shared/config/env'
 import { PulseHeart } from '@/shared/ui/PulseHeart'
 import { Reveal } from '@/shared/ui/Reveal'
 import { Footer } from '@/widgets/Footer'
@@ -15,22 +16,34 @@ const TYPE_LABELS: Record<string, string> = {
   equipment: 'Оборудование',
 }
 
-// Placeholder tracklist until the backend has real track data — vinyl/CD
-// items get a two-side listing, equipment gets none.
-const MOCK_TRACKLIST = ['Side A', 'Side B'].flatMap((side) =>
-  Array.from({ length: 4 }, (_, i) => `${side}${i + 1}. Track ${i + 1}`),
-)
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
 
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const product = useMemo(() => MOCK_PRODUCTS.find((p) => p.id === Number(id)), [id])
+  const product = useProduct(Number(id))
   const [quantity, setQuantity] = useState(1)
 
-  const liked = useFavoriteStore((state) => (product ? state.ids.has(product.id) : false))
+  const liked = useFavoriteStore((state) => (product.data ? state.ids.has(product.data.id) : false))
   const toggleFavorite = useFavoriteStore((state) => state.toggle)
   const addToCart = useCartStore((state) => state.add)
 
-  if (!product) {
+  if (product.isLoading) {
+    return (
+      <Stack>
+        <Header />
+        <Stack sx={{ alignItems: 'center', py: 12 }}>
+          <CircularProgress />
+        </Stack>
+        <Footer />
+      </Stack>
+    )
+  }
+
+  if (product.isError || !product.data) {
     return (
       <Stack>
         <Header />
@@ -49,7 +62,8 @@ export function ProductDetailPage() {
     )
   }
 
-  const showTracklist = product.type !== 'equipment'
+  const item = product.data
+  const showTracklist = item.type !== 'equipment'
 
   return (
     <Stack>
@@ -64,7 +78,7 @@ export function ProductDetailPage() {
               aspectRatio: '1 / 1',
               bgcolor: 'divider',
               borderRadius: 1,
-              backgroundImage: product.coverUrl ? `url(${product.coverUrl})` : undefined,
+              backgroundImage: item.cover_url ? `url(${resolveAssetUrl(item.cover_url)})` : undefined,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }}
@@ -73,23 +87,23 @@ export function ProductDetailPage() {
           <Stack spacing={3} sx={{ flexGrow: 1 }}>
             <Stack spacing={0.5}>
               <Typography variant="overline" color="text.secondary">
-                {TYPE_LABELS[product.type] ?? product.type}
-                {product.year ? ` · ${product.year}` : ''}
+                {TYPE_LABELS[item.type] ?? item.type}
+                {item.year ? ` · ${item.year}` : ''}
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                {product.artist}
+                {item.artist}
               </Typography>
               <Typography variant="h6" color="text.secondary">
-                {product.title}
+                {item.title}
               </Typography>
             </Stack>
 
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              {Number(product.price).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
+              {Number(item.price).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽
             </Typography>
 
             <Typography variant="body2" color="text.secondary">
-              {product.stock > 0 ? `В наличии: ${product.stock} шт.` : 'Нет в наличии'}
+              {item.stock > 0 ? `В наличии: ${item.stock} шт.` : 'Нет в наличии'}
             </Typography>
 
             <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
@@ -105,19 +119,15 @@ export function ProductDetailPage() {
                 <Typography sx={{ minWidth: 24, textAlign: 'center' }}>{quantity}</Typography>
                 <IconButton
                   size="small"
-                  disabled={quantity >= product.stock}
-                  onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))}
+                  disabled={quantity >= item.stock}
+                  onClick={() => setQuantity((q) => Math.min(item.stock, q + 1))}
                   aria-label="Увеличить количество"
                 >
                   +
                 </IconButton>
               </Stack>
 
-              <Button
-                variant="contained"
-                disabled={product.stock === 0}
-                onClick={() => addToCart(product.id, quantity)}
-              >
+              <Button variant="contained" disabled={item.stock === 0} onClick={() => addToCart(item.id, quantity)}>
                 В корзину
               </Button>
 
@@ -125,21 +135,35 @@ export function ProductDetailPage() {
                 liked={liked}
                 showCount={false}
                 size={26}
-                onChange={() => toggleFavorite(product.id)}
+                onChange={() => toggleFavorite(item.id)}
                 label="В избранное"
               />
             </Stack>
 
-            {showTracklist ? (
+            {item.description && (
+              <Typography variant="body2" color="text.secondary">
+                {item.description}
+              </Typography>
+            )}
+
+            {showTracklist && item.tracklist.length > 0 ? (
               <Stack spacing={1} sx={{ pt: 2 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                   Треклист
                 </Typography>
                 <Stack spacing={0.5}>
-                  {MOCK_TRACKLIST.map((track) => (
-                    <Typography key={track} variant="body2" color="text.secondary">
-                      {track}
-                    </Typography>
+                  {item.tracklist.map((track) => (
+                    <Stack key={track.position} direction="row" spacing={1.5}>
+                      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 20 }}>
+                        {track.position}.
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
+                        {track.title}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {formatDuration(track.duration_seconds)}
+                      </Typography>
+                    </Stack>
                   ))}
                 </Stack>
               </Stack>
