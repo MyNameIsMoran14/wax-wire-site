@@ -74,3 +74,9 @@ export const httpClient = {
   patch: <T>(path: string, body?: unknown) => client.patch<T>(path, body).then((res) => res.data),
   delete: <T>(path: string) => client.delete<T>(path).then((res) => res.data),
 }
+
+// Exported so the app bootstrap (AuthProvider) can check for a session
+// *before* calling /me — avoids a guaranteed 401 on every reload for a
+// guest visitor, and for a logged-in one goes straight refresh -> me
+// with no failed request in between.
+export { refreshAccessToken }

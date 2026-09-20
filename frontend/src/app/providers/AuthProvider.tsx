@@ -2,8 +2,8 @@ import { Box } from '@mui/material'
 import { type ReactNode, useEffect, useState } from 'react'
 import type { User } from '@/entities/user'
 import { useAuthStore } from '@/entities/user'
-import { httpClient } from '@/shared/api/httpClient'
-import { setUnauthorizedHandler, tokenStorage } from '@/shared/api/tokenStorage'
+import { httpClient, refreshAccessToken } from '@/shared/api/httpClient'
+import { setUnauthorizedHandler } from '@/shared/api/tokenStorage'
 import { useAppReadyStore } from '@/shared/lib/appReadyStore'
 import { SplashScreen } from '@/shared/ui/SplashScreen'
 
@@ -11,6 +11,9 @@ const MIN_SPLASH_MS = 900
 
 // On mount, tries to restore a session from the httpOnly refresh cookie
 // (access tokens only ever live in memory, so a reload always starts here).
+// Checks the session via /auth/refresh FIRST, not /auth/me — a guest visitor
+// has no refresh cookie either way, but this way they never see a guaranteed
+// 401 on /me; a logged-in visitor goes straight refresh(200) -> me(200).
 // A spinning-record splash covers this check and stays up for a minimum
 // duration so it doesn't just flicker when the check resolves instantly.
 // `appReadyStore` flips the moment the splash starts exiting, so the page's
@@ -38,14 +41,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     setChecking()
-    httpClient
-      .get<{ user: User }>('/auth/me')
-      .then((data) => {
-        if (!cancelled) setAuth(data.user, tokenStorage.get() ?? '')
-      })
-      .catch(() => {
-        if (!cancelled) setGuest()
-      })
+
+    refreshAccessToken().then((token) => {
+      if (cancelled) return
+      if (!token) {
+        setGuest()
+        return
+      }
+      httpClient
+        .get<{ user: User }>('/auth/me')
+        .then((data) => {
+          if (!cancelled) setAuth(data.user, token)
+        })
+        .catch(() => {
+          if (!cancelled) setGuest()
+        })
+    })
+
     return () => {
       cancelled = true
     }
