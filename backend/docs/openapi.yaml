@@ -1,0 +1,754 @@
+openapi: 3.0.3
+
+info:
+  title: Wax & Wire API
+  version: "1.0.0"
+  description: |
+    # Wax & Wire API
+
+    REST JSON API для магазина виниловых пластинок. Бэкенд — чистый PHP
+    (без фреймворка), фронт — отдельное React-приложение.
+
+    ## Базовый путь и авторизация
+
+    - Все пути начинаются с `/api/v1`.
+    - Access token — JWT, передаётся в заголовке `Authorization: Bearer <token>`,
+      живёт ~15 минут.
+    - Refresh token — случайная строка, лежит в httpOnly-cookie `refresh_token`,
+      в JS недоступна. Обновляется через `POST /auth/refresh`.
+    - Текущий пользователь (`user_id`, `role`) всегда определяется по JWT,
+      подменить его в теле запроса нельзя.
+
+    ## Общие правила
+
+    - Тело запроса и ответа — `application/json`.
+    - Денежные значения (`price`, `total` и т.п.) возвращаются **строками**,
+      например `"6700.00"` — чтобы не терять точность из-за float.
+    - Время — ISO-8601 UTC, например `"2026-09-20T14:30:00Z"`.
+    - Чужой ресурс (не твой заказ, не твоя корзина) отдаёт `404`, а не `403` —
+      чтобы не палить сам факт его существования.
+
+    ## Формат ошибок
+
+    Все ошибки возвращаются в едином виде:
+
+    ```json
+    {
+      "error": {
+        "code": "product_not_found",
+        "message": "Товар не найден"
+      }
+    }
+    ```
+
+    Фронт должен ветвиться по `error.code`, а не по тексту `message`.
+
+    | HTTP | Коды | Когда |
+    |---|---|---|
+    | 400 | `validation_error`, `invalid_request_body` | Некорректные данные в запросе |
+    | 401 | `unauthorized` | Нет токена или он истёк — нужен login/refresh |
+    | 403 | `forbidden` | Не хватает роли (например, не admin) |
+    | 404 | `not_found`, `product_not_found`, `order_not_found`, `cart_item_not_found` | Ресурс не найден или не принадлежит тебе |
+    | 409 | `email_taken`, `cart_empty`, `insufficient_stock` | Конфликт состояния |
+    | 500 | `internal_error` | Ошибка сервера |
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Локальная разработка
+
+tags:
+  - name: Auth
+    description: Регистрация, вход, обновление токена
+  - name: Catalog
+    description: Жанры и товары — публичный доступ
+  - name: Cart
+    description: Корзина пользователя
+  - name: Favorites
+    description: Избранное пользователя
+  - name: Orders
+    description: Оформление и история заказов
+  - name: Profile
+    description: Профиль текущего пользователя
+  - name: Admin
+    description: Управление товарами/жанрами/заказами (role=admin)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: product_not_found
+            message:
+              type: string
+              example: Товар не найден
+
+    User:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        email: { type: string, format: email, example: liz@example.com }
+        name: { type: string, example: Елизавета }
+        role: { type: string, enum: [user, admin], example: user }
+        created_at: { type: string, format: date-time }
+
+    AuthResponse:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        accessToken: { type: string, example: eyJhbGciOiJIUzI1NiIs... }
+
+    Genre:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        name: { type: string, example: Rock }
+
+    TracklistItem:
+      type: object
+      properties:
+        position: { type: integer, example: 1 }
+        title: { type: string, example: Come As You Are }
+        duration_seconds: { type: integer, example: 219 }
+
+    Product:
+      type: object
+      properties:
+        id: { type: integer, example: 42 }
+        title: { type: string, example: Nevermind }
+        artist: { type: string, example: Nirvana }
+        genre: { $ref: '#/components/schemas/Genre' }
+        type: { type: string, enum: [vinyl, cd, equipment], example: vinyl }
+        price: { type: string, example: "6700.00" }
+        stock: { type: integer, example: 5 }
+        year: { type: integer, example: 1991 }
+        description: { type: string, nullable: true }
+        cover_url: { type: string, nullable: true, example: /uploads/covers/42.jpg }
+        tracklist:
+          type: array
+          items: { $ref: '#/components/schemas/TracklistItem' }
+        created_at: { type: string, format: date-time }
+
+    CartItem:
+      type: object
+      properties:
+        product: { $ref: '#/components/schemas/Product' }
+        quantity: { type: integer, example: 2 }
+
+    Cart:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CartItem' }
+        total: { type: string, example: "13400.00" }
+
+    OrderItem:
+      type: object
+      properties:
+        product_id: { type: integer, example: 42 }
+        title_snapshot: { type: string, example: Nirvana — Nevermind }
+        price_snapshot: { type: string, example: "6700.00" }
+        quantity: { type: integer, example: 1 }
+
+    Order:
+      type: object
+      properties:
+        id: { type: integer, example: 7 }
+        status:
+          type: string
+          enum: [new, processing, shipped, completed, cancelled]
+          example: new
+        total: { type: string, example: "6700.00" }
+        address: { type: string, example: Москва, ул. Пушкина, д. 1 }
+        phone: { type: string, example: "+79991234567" }
+        comment: { type: string, nullable: true }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OrderItem' }
+        created_at: { type: string, format: date-time }
+
+  responses:
+    NotFound:
+      description: Ресурс не найден (или не принадлежит текущему пользователю)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Нет токена или он истёк
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Не хватает прав (например, нужна роль admin)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Некорректные данные в запросе
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Зарегистрировать нового пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password, minLength: 8 }
+                name: { type: string }
+      responses:
+        '201':
+          description: Аккаунт создан, сразу залогинен
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '409':
+          description: Email уже занят
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Войти по email/паролю
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401':
+          description: Неверный email или пароль
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Обновить access token по refresh-cookie
+      responses:
+        '200':
+          description: Новый access token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Выйти (отозвать refresh token)
+      security: [{ BearerAuth: [] }]
+      responses:
+        '204': { description: Готово }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Текущий пользователь (для восстановления сессии при загрузке страницы)
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: Текущий пользователь
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /genres:
+    get:
+      tags: [Catalog]
+      summary: Список жанров
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Genre' }
+
+  /products:
+    get:
+      tags: [Catalog]
+      summary: Каталог товаров с фильтрами и пагинацией
+      parameters:
+        - { name: genre, in: query, schema: { type: integer } }
+        - { name: type, in: query, schema: { type: string, enum: [vinyl, cd, equipment] } }
+        - { name: price_min, in: query, schema: { type: string } }
+        - { name: price_max, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string }, description: Поиск по названию/исполнителю }
+        - { name: sort, in: query, schema: { type: string, enum: [price_asc, price_desc, new] } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Product' }
+                  page: { type: integer }
+                  total: { type: integer }
+
+  /products/{id}:
+    get:
+      tags: [Catalog]
+      summary: Карточка товара
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /cart:
+    get:
+      tags: [Cart]
+      summary: Текущая корзина
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cart' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /cart/items:
+    post:
+      tags: [Cart]
+      summary: Добавить товар в корзину
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_id, quantity]
+              properties:
+                product_id: { type: integer }
+                quantity: { type: integer, minimum: 1, default: 1 }
+      responses:
+        '200':
+          description: Обновлённая корзина
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cart' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Недостаточно товара на складе
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /cart/items/{productId}:
+    patch:
+      tags: [Cart]
+      summary: Изменить количество
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Обновлённая корзина
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cart' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Cart]
+      summary: Убрать товар из корзины
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Обновлённая корзина
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cart' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /favorites:
+    get:
+      tags: [Favorites]
+      summary: Список избранного
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Product' }
+
+  /favorites/{productId}:
+    post:
+      tags: [Favorites]
+      summary: Добавить в избранное
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Добавлено }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Favorites]
+      summary: Убрать из избранного
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Убрано }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /orders:
+    get:
+      tags: [Orders]
+      summary: История заказов текущего пользователя
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Order' }
+    post:
+      tags: [Orders]
+      summary: Оформить заказ из текущей корзины
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address, phone]
+              properties:
+                address: { type: string }
+                phone: { type: string }
+                comment: { type: string }
+      responses:
+        '201':
+          description: Заказ создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '409':
+          description: Корзина пуста или не хватает товара на складе
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Детали заказа
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /profile:
+    get:
+      tags: [Profile]
+      summary: Профиль текущего пользователя
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+    patch:
+      tags: [Profile]
+      summary: Изменить имя/email
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Обновлённый профиль
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /admin/products:
+    get:
+      tags: [Admin]
+      summary: Список товаров (админ, с учётом остатков)
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Product' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Admin]
+      summary: Создать товар
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, artist, genre_id, type, price, stock]
+              properties:
+                title: { type: string }
+                artist: { type: string }
+                genre_id: { type: integer }
+                type: { type: string, enum: [vinyl, cd, equipment] }
+                price: { type: string }
+                stock: { type: integer }
+                year: { type: integer }
+                description: { type: string }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/products/{id}:
+    patch:
+      tags: [Admin]
+      summary: Обновить товар
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Product' }
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Admin]
+      summary: Удалить товар
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Удалено }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/products/{id}/image:
+    post:
+      tags: [Admin]
+      summary: Загрузить обложку товара
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image: { type: string, format: binary }
+      responses:
+        '200':
+          description: Обложка сохранена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/genres:
+    get:
+      tags: [Admin]
+      summary: Список жанров (админ)
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Genre' }
+    post:
+      tags: [Admin]
+      summary: Создать жанр
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Genre' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/genres/{id}:
+    patch:
+      tags: [Admin]
+      summary: Переименовать жанр
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Genre' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Admin]
+      summary: Удалить жанр
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Удалено }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/orders:
+    get:
+      tags: [Admin]
+      summary: Все заказы (админ)
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [new, processing, shipped, completed, cancelled] } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Order' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/orders/{id}/status:
+    patch:
+      tags: [Admin]
+      summary: Сменить статус заказа
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [new, processing, shipped, completed, cancelled]
+      responses:
+        '200':
+          description: Обновлённый заказ
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '403': { $ref: '#/components/responses/Forbidden' }
