@@ -99,6 +99,56 @@ class ProductModel
         return $row === false ? null : $row;
     }
 
+    /** Full unpaginated catalog for the admin list view, newest first. */
+    public static function allAdmin(): array
+    {
+        $stmt = Database::connection()->query(
+            'SELECT p.*, g.id AS joined_genre_id, g.name AS joined_genre_name
+             FROM products p
+             LEFT JOIN genres g ON g.id = p.genre_id
+             ORDER BY p.id DESC',
+        );
+
+        return array_map([self::class, 'rowToPublic'], $stmt->fetchAll());
+    }
+
+    /** @param array{title: string, artist: string, genre_id: ?int, type: string, price: string, stock: int, year: ?int, description: ?string} $data */
+    public static function create(array $data): int
+    {
+        return Database::table('products')->insert([
+            'title' => $data['title'],
+            'artist' => $data['artist'],
+            'genre_id' => $data['genre_id'],
+            'type' => $data['type'],
+            'price' => $data['price'],
+            'stock' => $data['stock'],
+            'year' => $data['year'],
+            'description' => $data['description'],
+            'cover_url' => null,
+            'created_at' => date('c'),
+        ]);
+    }
+
+    /** Partial update — only the keys present in $data are written. */
+    public static function update(int $id, array $data): bool
+    {
+        if ($data === []) {
+            return true;
+        }
+
+        return Database::table('products')->where('id', $id)->update($data) > 0;
+    }
+
+    public static function delete(int $id): bool
+    {
+        return Database::table('products')->where('id', $id)->delete() > 0;
+    }
+
+    public static function setCoverUrl(int $id, string $url): void
+    {
+        Database::table('products')->where('id', $id)->update(['cover_url' => $url]);
+    }
+
     public static function tracklistFor(int $productId): array
     {
         $stmt = Database::connection()->prepare(

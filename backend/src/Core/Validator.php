@@ -35,6 +35,19 @@ class Validator
                         break;
                     }
                 }
+
+                if ($rule === 'numeric' && $value !== null && $value !== '' && !is_numeric($value)) {
+                    $errors[$field] = 'Должно быть числом';
+                    break;
+                }
+
+                if (str_starts_with($rule, 'in:')) {
+                    $allowed = explode(',', substr($rule, 3));
+                    if ($value !== null && $value !== '' && !in_array($value, $allowed, true)) {
+                        $errors[$field] = 'Недопустимое значение: ' . implode(', ', $allowed);
+                        break;
+                    }
+                }
             }
         }
 

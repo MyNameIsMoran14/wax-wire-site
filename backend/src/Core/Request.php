@@ -56,4 +56,14 @@ class Request
     {
         return $_COOKIE[$key] ?? null;
     }
+
+    /**
+     * A single uploaded file from a multipart/form-data request, in PHP's
+     * native $_FILES shape (name/type/tmp_name/error/size). Not parsed from
+     * php://input — PHP consumes multipart bodies into $_FILES itself.
+     */
+    public function file(string $key): ?array
+    {
+        return $_FILES[$key] ?? null;
+    }
 }
