@@ -46,7 +46,7 @@ info:
     | HTTP | Коды | Когда |
     |---|---|---|
     | 400 | `validation_error`, `invalid_request_body` | Некорректные данные в запросе |
-    | 401 | `unauthorized` | Нет токена или он истёк — нужен login/refresh |
+    | 401 | `unauthorized`, `invalid_credentials` | Нет токена/истёк — refresh или login; `invalid_credentials` — неверный email/пароль |
     | 403 | `forbidden` | Не хватает роли (например, не admin) |
     | 404 | `not_found`, `product_not_found`, `order_not_found`, `cart_item_not_found` | Ресурс не найден или не принадлежит тебе |
     | 409 | `email_taken`, `cart_empty`, `insufficient_stock` | Конфликт состояния |

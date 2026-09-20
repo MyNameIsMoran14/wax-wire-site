@@ -75,5 +75,17 @@ export function useScratchSound() {
     }, 200)
   }
 
-  return { start, update, stop }
+  // Call on unmount. Without this the AudioContext (and its source node)
+  // outlives the component — browsers cap how many contexts can exist at
+  // once, so repeated SPA navigation to/from the page would eventually stop
+  // producing sound at all.
+  const dispose = () => {
+    sourceRef.current?.stop()
+    sourceRef.current?.disconnect()
+    sourceRef.current = null
+    void ctxRef.current?.close()
+    ctxRef.current = null
+  }
+
+  return { start, update, stop, dispose }
 }

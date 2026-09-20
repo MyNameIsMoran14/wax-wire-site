@@ -15,6 +15,10 @@ class AuthController
 {
     private const REFRESH_COOKIE = 'refresh_token';
     private const REFRESH_TTL_DAYS = 30;
+    // A valid-format bcrypt hash of an unguessable string nobody could ever type
+    // as a password. Used to keep password_verify()'s cost constant when the
+    // email doesn't exist, so "no such user" and "wrong password" take the same time.
+    private const DUMMY_PASSWORD_HASH = '$2y$10$eImiTXuWVxfM37uY4JANjQZ8Z1p6c7v3l4XW9k1r2q3s4t5u6v7w8';
 
     public function register(Request $request): void
     {
@@ -55,7 +59,13 @@ class AuthController
         }
 
         $user = UserModel::findByEmail($data['email']);
-        if ($user === null || !password_verify($data['password'], $user['password_hash'])) {
+        // Always run password_verify, even for an unknown email — otherwise
+        // "no such user" short-circuits and returns measurably faster than
+        // "wrong password", letting an attacker enumerate registered emails
+        // by timing the response.
+        $hashToCheck = $user['password_hash'] ?? self::DUMMY_PASSWORD_HASH;
+        $passwordOk = password_verify($data['password'], $hashToCheck);
+        if ($user === null || !$passwordOk) {
             Response::error('invalid_credentials', 'Неверный email или пароль', 401);
         }
 
