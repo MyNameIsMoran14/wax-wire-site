@@ -124,7 +124,7 @@ export function ProductDetailPage() {
               <PulseHeart
                 liked={liked}
                 showCount={false}
-                size={36}
+                size={26}
                 onChange={() => toggleFavorite(product.id)}
                 label="В избранное"
               />
