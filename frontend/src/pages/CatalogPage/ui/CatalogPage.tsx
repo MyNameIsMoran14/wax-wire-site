@@ -1,10 +1,8 @@
 import { Box, MenuItem, Select, type SelectChangeEvent, Stack, Typography } from '@mui/material'
-import { useSearchParams } from 'react-router-dom'
-import { ProductCard } from '@/entities/product'
+import { MOCK_PRODUCTS, ProductCard } from '@/entities/product'
 import { Reveal } from '@/shared/ui/Reveal'
 import { Footer } from '@/widgets/Footer'
 import { Header } from '@/widgets/Header'
-import { MOCK_PRODUCTS } from '../model/mockProducts'
 import { type SortOption, useCatalogFilters } from '../model/useCatalogFilters'
 import { CatalogFilters } from './CatalogFilters'
 
@@ -15,8 +13,7 @@ const SORT_LABELS: Record<SortOption, string> = {
 }
 
 export function CatalogPage() {
-  const [searchParams] = useSearchParams()
-  const { filters, setFilter, reset, results } = useCatalogFilters(MOCK_PRODUCTS, searchParams.get('q') ?? '')
+  const { filters, setFilter, reset, results } = useCatalogFilters(MOCK_PRODUCTS)
 
   return (
     <Stack>

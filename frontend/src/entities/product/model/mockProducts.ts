@@ -1,4 +1,4 @@
-import type { Product } from '@/entities/product'
+import type { Product } from './types'
 
 // Placeholder data until GET /products is wired up on the backend.
 export const MOCK_PRODUCTS: Product[] = [

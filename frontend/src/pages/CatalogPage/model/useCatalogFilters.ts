@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import type { Product, ProductType } from '@/entities/product'
 
 export type SortOption = 'new' | 'price_asc' | 'price_desc'
@@ -11,7 +12,7 @@ export interface CatalogFiltersState {
   sort: SortOption
 }
 
-const INITIAL_FILTERS: CatalogFiltersState = {
+const DEFAULTS: CatalogFiltersState = {
   q: '',
   type: 'all',
   priceMin: '',
@@ -19,11 +20,36 @@ const INITIAL_FILTERS: CatalogFiltersState = {
   sort: 'new',
 }
 
-// Field names mirror the real /products query params (type, q, price_min,
-// price_max, sort) on purpose — swapping this local filter for a real fetch
-// later is a matter of sending `filters` as-is, not redesigning the state shape.
-export function useCatalogFilters(products: Product[], initialQuery = '') {
-  const [filters, setFilters] = useState<CatalogFiltersState>({ ...INITIAL_FILTERS, q: initialQuery })
+const PARAM_KEYS: Record<keyof CatalogFiltersState, string> = {
+  q: 'q',
+  type: 'type',
+  priceMin: 'price_min',
+  priceMax: 'price_max',
+  sort: 'sort',
+}
+
+const isProductType = (value: string): value is ProductType =>
+  value === 'vinyl' || value === 'cd' || value === 'equipment'
+const isSortOption = (value: string): value is SortOption =>
+  value === 'new' || value === 'price_asc' || value === 'price_desc'
+
+// Filters live in the URL (not local state) so the field names mirror the
+// real /products query params (type, q, price_min, price_max, sort) and a
+// filtered catalog view stays shareable/bookmarkable and survives reloads.
+export function useCatalogFilters(products: Product[]) {
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const filters: CatalogFiltersState = useMemo(() => {
+    const type = searchParams.get(PARAM_KEYS.type)
+    const sort = searchParams.get(PARAM_KEYS.sort)
+    return {
+      q: searchParams.get(PARAM_KEYS.q) ?? DEFAULTS.q,
+      type: type && isProductType(type) ? type : DEFAULTS.type,
+      priceMin: searchParams.get(PARAM_KEYS.priceMin) ?? DEFAULTS.priceMin,
+      priceMax: searchParams.get(PARAM_KEYS.priceMax) ?? DEFAULTS.priceMax,
+      sort: sort && isSortOption(sort) ? sort : DEFAULTS.sort,
+    }
+  }, [searchParams])
 
   const results = useMemo(() => {
     const q = filters.q.trim().toLowerCase()
@@ -47,11 +73,17 @@ export function useCatalogFilters(products: Product[], initialQuery = '') {
   }, [products, filters])
 
   function setFilter<K extends keyof CatalogFiltersState>(key: K, value: CatalogFiltersState[K]) {
-    setFilters((prev) => ({ ...prev, [key]: value }))
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      const paramKey = PARAM_KEYS[key]
+      if (value === '' || value === DEFAULTS[key]) next.delete(paramKey)
+      else next.set(paramKey, String(value))
+      return next
+    })
   }
 
   function reset() {
-    setFilters(INITIAL_FILTERS)
+    setSearchParams(new URLSearchParams())
   }
 
   return { filters, setFilter, reset, results }

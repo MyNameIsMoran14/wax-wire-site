@@ -2,6 +2,8 @@ import { KeyboardArrowDown } from '@mui/icons-material'
 import { AppBar, Avatar, Badge, Button, InputBase, Menu, MenuItem, Stack, Toolbar, Typography } from '@mui/material'
 import { type FormEvent, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { useCartStore } from '@/entities/cart'
+import { useFavoriteStore } from '@/entities/favorite'
 import { useAuthStore } from '@/entities/user'
 
 const NAV_LINKS = [
@@ -17,8 +19,8 @@ export function Header() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
-  // Cart isn't wired up yet — badge only appears once there's a real count.
-  const cartCount = 0
+  const favoriteCount = useFavoriteStore((s) => s.ids.size)
+  const cartCount = useCartStore((s) => s.items.reduce((sum, item) => sum + item.quantity, 0))
 
   const handleSearchSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -93,9 +95,15 @@ export function Header() {
             />
           </Stack>
 
-          <Button color="inherit" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
-            Избранное
-          </Button>
+          <Badge
+            badgeContent={favoriteCount}
+            color="primary"
+            sx={{ display: { xs: 'none', sm: 'inline-flex' }, '& .MuiBadge-badge': { right: -10, top: 2 } }}
+          >
+            <Button color="inherit" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
+              Избранное
+            </Button>
+          </Badge>
 
           <Badge
             badgeContent={cartCount}
