@@ -1,83 +1,76 @@
+import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { env } from '@/shared/config/env'
 import { ApiError } from './ApiError'
 import { notifyUnauthorized, tokenStorage } from './tokenStorage'
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+type RetryableConfig = InternalAxiosRequestConfig & { _retry?: boolean }
 
-interface RequestOptions {
-  method?: Method
-  body?: unknown
-  skipAuthRetry?: boolean
-}
+const client = axios.create({
+  baseURL: env.apiUrl,
+  withCredentials: true, // отправлять httpOnly refresh-cookie
+  headers: { 'Content-Type': 'application/json' },
+})
+
+// Request-интерцептор — подставляет Bearer-токен в каждый запрос.
+client.interceptors.request.use((config) => {
+  const token = tokenStorage.get()
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
 
 let refreshPromise: Promise<string | null> | null = null
 
 async function refreshAccessToken(): Promise<string | null> {
   if (!refreshPromise) {
-    refreshPromise = (async () => {
-      try {
-        const res = await fetch(`${env.apiUrl}/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-        })
-        if (!res.ok) {
-          tokenStorage.set(null)
-          return null
-        }
-        const data = (await res.json()) as { accessToken: string }
-        tokenStorage.set(data.accessToken)
-        return data.accessToken
-      } catch {
+    refreshPromise = axios
+      .post<{ accessToken: string }>(`${env.apiUrl}/auth/refresh`, undefined, { withCredentials: true })
+      .then((res) => {
+        tokenStorage.set(res.data.accessToken)
+        return res.data.accessToken
+      })
+      .catch(() => {
         tokenStorage.set(null)
         return null
-      } finally {
+      })
+      .finally(() => {
         refreshPromise = null
-      }
-    })()
+      })
   }
   return refreshPromise
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, skipAuthRetry = false } = options
-
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  const token = tokenStorage.get()
-  if (token) headers.Authorization = `Bearer ${token}`
-
-  const res = await fetch(`${env.apiUrl}${path}`, {
-    method,
-    headers,
-    credentials: 'include',
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-
-  if (res.status === 401 && !skipAuthRetry && path !== '/auth/refresh') {
-    const newToken = await refreshAccessToken()
-    if (newToken) {
-      return request<T>(path, { ...options, skipAuthRetry: true })
-    }
-    notifyUnauthorized()
-    throw new ApiError(401, 'Unauthorized')
-  }
-
-  const isJson = res.headers.get('content-type')?.includes('application/json')
-  const payload = isJson ? await res.json().catch(() => undefined) : undefined
-
-  if (!res.ok) {
-    const message =
-      payload && typeof payload === 'object' && 'message' in payload
-        ? String((payload as { message: unknown }).message)
-        : `Request failed with status ${res.status}`
-    throw new ApiError(res.status, message, payload)
-  }
-
-  return payload as T
+function toApiError(error: AxiosError): ApiError {
+  const status = error.response?.status ?? 0
+  const payload = error.response?.data as { error?: { code: string; message: string } } | undefined
+  const message = payload?.error?.message ?? error.message
+  return new ApiError(status, message, payload)
 }
 
+// Response-интерцептор — молча обновляет токен по 401 и повторяет запрос один раз.
+client.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const original = error.config as RetryableConfig | undefined
+
+    if (error.response?.status === 401 && original && !original._retry && original.url !== '/auth/refresh') {
+      const newToken = await refreshAccessToken()
+      if (newToken) {
+        original._retry = true
+        original.headers.Authorization = `Bearer ${newToken}`
+        return client(original)
+      }
+      notifyUnauthorized()
+    }
+
+    return Promise.reject(toApiError(error))
+  },
+)
+
 export const httpClient = {
-  get: <T>(path: string) => request<T>(path, { method: 'GET' }),
-  post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
-  patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  get: <T>(path: string) => client.get<T>(path).then((res) => res.data),
+  post: <T>(path: string, body?: unknown) => client.post<T>(path, body).then((res) => res.data),
+  patch: <T>(path: string, body?: unknown) => client.patch<T>(path, body).then((res) => res.data),
+  delete: <T>(path: string) => client.delete<T>(path).then((res) => res.data),
 }
