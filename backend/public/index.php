@@ -16,10 +16,11 @@ spl_autoload_register(static function (string $class): void {
     }
 });
 
+use App\Core\Config;
 use App\Core\Request;
 use App\Core\Router;
 
-$config = require __DIR__ . '/../src/Config/config.php';
+$config = Config::get();
 
 // Access-Control-Allow-Origin с credentials:true обязан быть точным origin,
 // а не '*'. Vite при занятом 5173 сам уезжает на 5174/5175 и т.д., так что

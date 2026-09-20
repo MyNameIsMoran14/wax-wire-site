@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Auth;
+use App\Core\RateLimiter;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Validator;
@@ -15,9 +16,15 @@ class AuthController
 {
     private const REFRESH_COOKIE = 'refresh_token';
     private const REFRESH_TTL_DAYS = 30;
+    // A valid-format bcrypt hash of an unguessable string nobody could ever type
+    // as a password. Used to keep password_verify()'s cost constant when the
+    // email doesn't exist, so "no such user" and "wrong password" take the same time.
+    private const DUMMY_PASSWORD_HASH = '$2y$10$eImiTXuWVxfM37uY4JANjQZ8Z1p6c7v3l4XW9k1r2q3s4t5u6v7w8';
 
     public function register(Request $request): void
     {
+        $this->enforceRateLimit('register', maxAttempts: 5, windowSeconds: 60);
+
         $data = $request->all();
 
         $errors = Validator::validate($data, [
@@ -44,6 +51,8 @@ class AuthController
 
     public function login(Request $request): void
     {
+        $this->enforceRateLimit('login', maxAttempts: 10, windowSeconds: 60);
+
         $data = $request->all();
 
         $errors = Validator::validate($data, [
@@ -55,7 +64,13 @@ class AuthController
         }
 
         $user = UserModel::findByEmail($data['email']);
-        if ($user === null || !password_verify($data['password'], $user['password_hash'])) {
+        // Always run password_verify, even for an unknown email — otherwise
+        // "no such user" short-circuits and returns measurably faster than
+        // "wrong password", letting an attacker enumerate registered emails
+        // by timing the response.
+        $hashToCheck = $user['password_hash'] ?? self::DUMMY_PASSWORD_HASH;
+        $passwordOk = password_verify($data['password'], $hashToCheck);
+        if ($user === null || !$passwordOk) {
             Response::error('invalid_credentials', 'Неверный email или пароль', 401);
         }
 
@@ -69,14 +84,38 @@ class AuthController
             Response::error('unauthorized', 'Нет refresh-токена', 401);
         }
 
-        $stored = RefreshTokenModel::findValid(Auth::hashRefreshToken($token));
+        $hash = Auth::hashRefreshToken($token);
+        $stored = RefreshTokenModel::findByHash($hash);
+
         if ($stored === null) {
             Response::error('unauthorized', 'Refresh-токен недействителен', 401);
         }
 
+        if ($stored['revoked_at'] !== null) {
+            // This exact token was already rotated away once before. The only
+            // way to see it again is a stolen copy being replayed — kill every
+            // session for this account rather than just rejecting this one request.
+            RefreshTokenModel::revokeAllForUser((int) $stored['user_id']);
+            Response::error('unauthorized', 'Обнаружено повторное использование токена — все сессии завершены', 401);
+        }
+
+        if (strtotime($stored['expires_at']) <= time()) {
+            Response::error('unauthorized', 'Refresh-токен истёк', 401);
+        }
+
         // Ротация: старый токен гасим, выдаём новый — чтобы украденный старый
-        // токен нельзя было переиспользовать повторно.
-        RefreshTokenModel::revoke(Auth::hashRefreshToken($token));
+        // токен нельзя было переиспользовать повторно. revokeIfActive — это
+        // атомарный "claim": если тот же токен одновременно пришёл из двух
+        // мест (две вкладки, либо ворованная копия), выиграть может только
+        // один запрос — проверка "не отозван ли" и сам отзыв это одна SQL-операция,
+        // а не два отдельных шага с окном для гонки между ними.
+        if (!RefreshTokenModel::revokeIfActive($hash)) {
+            // Проиграли гонку — кто-то другой отозвал этот токен долю секунды
+            // назад. Расцениваем как повторное использование.
+            RefreshTokenModel::revokeAllForUser((int) $stored['user_id']);
+            Response::error('unauthorized', 'Обнаружено повторное использование токена — все сессии завершены', 401);
+        }
+
         $user = UserModel::findById((int) $stored['user_id']);
 
         $this->setRefreshCookie($this->issueAndStoreRefreshToken((int) $user['id']));
@@ -141,5 +180,23 @@ class AuthController
             'samesite' => 'Lax',
             // 'secure' => true, // включить, когда будет HTTPS
         ]);
+    }
+
+    // IP-scoped brute-force guard for register/login. Keyed by action so a
+    // burst of registrations doesn't also lock out logins from the same IP.
+    private function enforceRateLimit(string $action, int $maxAttempts, int $windowSeconds): void
+    {
+        // Note: trusts REMOTE_ADDR as-is, so behind a reverse proxy every
+        // client would share one bucket (the proxy's IP) unless the proxy is
+        // configured to set — and this app is made to trust — a real client
+        // IP header. No such setup here, so left as REMOTE_ADDR: correct for
+        // direct access (how this project actually runs), the proxy case is
+        // out of scope until there's an actual deployment target to match.
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $key = "{$action}:{$ip}";
+
+        if (RateLimiter::hit($key, $maxAttempts, $windowSeconds)) {
+            Response::error('rate_limit_exceeded', 'Слишком много попыток, попробуйте позже', 429);
+        }
     }
 }

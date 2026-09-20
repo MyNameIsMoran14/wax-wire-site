@@ -38,12 +38,17 @@ export function VinylRecord({ size = 380, spinning = true, interactive = false }
   const svgRef = useRef<SVGSVGElement | null>(null)
   const rotationRef = useRef(0)
   const draggingRef = useRef(false)
+  const activePointerIdRef = useRef<number | null>(null)
   const lastPointerAngleRef = useRef(0)
   const lastFrameRef = useRef<number | null>(null)
   const scratch = useScratchSound()
 
   useEffect(() => {
     let rafId: number
+    // Reset on every (re)start, not just once: if this effect re-runs (e.g.
+    // `spinning` toggles) mid-animation, a stale timestamp from before the
+    // restart would make the next dt huge and snap the rotation forward.
+    lastFrameRef.current = null
     const tick = (t: number) => {
       rafId = requestAnimationFrame(tick)
       const last = lastFrameRef.current
@@ -60,18 +65,28 @@ export function VinylRecord({ size = 380, spinning = true, interactive = false }
     return () => cancelAnimationFrame(rafId)
   }, [spinning])
 
+  // Release the AudioContext when the record leaves the page — otherwise it
+  // outlives the component, and browsers cap how many can exist at once.
+  useEffect(() => {
+    return () => scratch.dispose()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handlePointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
-    if (!interactive) return
+    // Ignore a second finger/pointer while already dragging with one —
+    // otherwise two concurrent scratch sounds start and only one ever stops.
+    if (!interactive || activePointerIdRef.current !== null) return
     const el = svgRef.current
     if (!el) return
     el.setPointerCapture(e.pointerId)
+    activePointerIdRef.current = e.pointerId
     draggingRef.current = true
     lastPointerAngleRef.current = angleAt(e.clientX, e.clientY, el.getBoundingClientRect())
     scratch.start()
   }
 
   const handlePointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
-    if (!interactive || !draggingRef.current) return
+    if (!interactive || !draggingRef.current || e.pointerId !== activePointerIdRef.current) return
     const el = svgRef.current
     if (!el) return
     const now = performance.now()
@@ -85,7 +100,8 @@ export function VinylRecord({ size = 380, spinning = true, interactive = false }
   }
 
   const endDrag = (e: ReactPointerEvent<SVGSVGElement>) => {
-    if (!interactive) return
+    if (!interactive || e.pointerId !== activePointerIdRef.current) return
+    activePointerIdRef.current = null
     draggingRef.current = false
     scratch.stop()
     svgRef.current?.releasePointerCapture(e.pointerId)

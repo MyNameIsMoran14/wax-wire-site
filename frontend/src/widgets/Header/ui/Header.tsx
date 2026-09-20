@@ -1,5 +1,9 @@
-import { AppBar, Badge, Button, InputBase, Stack, Toolbar, Typography } from '@mui/material'
-import { Link as RouterLink } from 'react-router-dom'
+import { KeyboardArrowDown } from '@mui/icons-material'
+import { AppBar, Avatar, Badge, Button, InputBase, Menu, MenuItem, Stack, Toolbar, Typography } from '@mui/material'
+import { type FormEvent, useState } from 'react'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { useCartStore } from '@/entities/cart'
+import { useFavoriteStore } from '@/entities/favorite'
 import { useAuthStore } from '@/entities/user'
 
 const NAV_LINKS = [
@@ -12,8 +16,22 @@ const NAV_LINKS = [
 export function Header() {
   const user = useAuthStore((s) => s.user)
   const clearAuth = useAuthStore((s) => s.clearAuth)
-  // Cart isn't wired up yet — badge only appears once there's a real count.
-  const cartCount = 0
+  const navigate = useNavigate()
+  const [query, setQuery] = useState('')
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
+  const favoriteCount = useFavoriteStore((s) => s.ids.size)
+  const cartCount = useCartStore((s) => s.items.reduce((sum, item) => sum + item.quantity, 0))
+
+  const handleSearchSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    const trimmed = query.trim()
+    navigate(trimmed ? `/catalog?q=${encodeURIComponent(trimmed)}` : '/catalog')
+  }
+
+  const handleLogout = () => {
+    setMenuAnchor(null)
+    clearAuth()
+  }
 
   return (
     <AppBar
@@ -53,22 +71,39 @@ export function Header() {
         </Stack>
 
         <Stack direction="row" spacing={3} sx={{ alignItems: 'center' }}>
-          <InputBase
-            placeholder="Поиск пластинок…"
-            sx={{
-              display: { xs: 'none', lg: 'flex' },
-              bgcolor: 'background.default',
-              borderRadius: 999,
-              px: 2,
-              py: 0.75,
-              fontSize: 14,
-              width: 220,
-            }}
-          />
+          {/* Global quick-search: Enter takes you to the catalog with the
+              query pre-filled. The catalog's own search field is for
+              refining a list you're already looking at — this one is for
+              jumping there from anywhere (home, product page, etc). */}
+          <Stack
+            component="form"
+            onSubmit={handleSearchSubmit}
+            sx={{ display: { xs: 'none', lg: 'block' } }}
+          >
+            <InputBase
+              placeholder="Поиск пластинок…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              sx={{
+                bgcolor: 'background.default',
+                borderRadius: 999,
+                px: 2,
+                py: 0.75,
+                fontSize: 14,
+                width: 220,
+              }}
+            />
+          </Stack>
 
-          <Button color="inherit" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
-            Избранное
-          </Button>
+          <Badge
+            badgeContent={favoriteCount}
+            color="primary"
+            sx={{ display: { xs: 'none', sm: 'inline-flex' }, '& .MuiBadge-badge': { right: -10, top: 2 } }}
+          >
+            <Button color="inherit" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
+              Избранное
+            </Button>
+          </Badge>
 
           <Badge
             badgeContent={cartCount}
@@ -79,12 +114,81 @@ export function Header() {
           </Badge>
 
           {user ? (
-            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-              <Typography variant="body2">{user.name}</Typography>
-              <Button onClick={clearAuth} variant="outlined" size="small" sx={{ borderRadius: 999 }}>
-                Выйти
-              </Button>
-            </Stack>
+            <>
+              <Stack
+                direction="row"
+                spacing={1}
+                onClick={(e) => setMenuAnchor(e.currentTarget)}
+                sx={{
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  borderRadius: 999,
+                  pl: 0.5,
+                  pr: 1.25,
+                  py: 0.5,
+                  transition: 'background-color 300ms ease',
+                  '&:hover': { bgcolor: 'background.default' },
+                }}
+              >
+                <Avatar
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    bgcolor: 'primary.main',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    border: '2px solid',
+                    borderColor: 'background.paper',
+                    boxShadow: '0 0 0 1px rgba(140,47,39,0.25)',
+                  }}
+                >
+                  {user.name.trim().charAt(0).toUpperCase()}
+                </Avatar>
+                <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 500 }}>
+                  {user.name}
+                </Typography>
+                <KeyboardArrowDown
+                  fontSize="small"
+                  sx={{
+                    color: 'text.secondary',
+                    transition: 'transform 300ms cubic-bezier(0.22, 1, 0.36, 1)',
+                    transform: menuAnchor ? 'rotate(180deg)' : 'rotate(0deg)',
+                  }}
+                />
+              </Stack>
+              <Menu
+                anchorEl={menuAnchor}
+                open={menuAnchor !== null}
+                onClose={() => setMenuAnchor(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                slotProps={{
+                  paper: {
+                    sx: {
+                      mt: 1.5,
+                      minWidth: 180,
+                      borderRadius: 3,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      boxShadow: '0 16px 40px rgba(23,20,15,0.18)',
+                    },
+                  },
+                  list: { sx: { p: 1 } },
+                }}
+              >
+                <MenuItem
+                  onClick={handleLogout}
+                  sx={{
+                    borderRadius: 1.5,
+                    fontWeight: 500,
+                    transition: 'background-color 300ms ease, color 300ms ease',
+                    '&:hover': { bgcolor: 'rgba(140,47,39,0.08)', color: '#8C2F27' },
+                  }}
+                >
+                  Выйти
+                </MenuItem>
+              </Menu>
+            </>
           ) : (
             <Button component={RouterLink} to="/login" variant="outlined" sx={{ borderRadius: 999 }}>
               Войти
