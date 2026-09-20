@@ -12,6 +12,16 @@ const theme = createTheme({
   },
   shape: { borderRadius: 4 },
   components: {
+    // CssBaseline colors `body`'s background but leaves `html` alone — on a
+    // page shorter than the viewport, the area below `body`'s content isn't
+    // guaranteed to inherit that color (browser-dependent), so a resize or a
+    // content-height change (e.g. an admin panel selection collapsing) can
+    // flash raw white beneath the footer. Coloring `html` too closes that gap.
+    MuiCssBaseline: {
+      styleOverrides: {
+        html: { backgroundColor: '#F7F3EC' },
+      },
+    },
     MuiButton: {
       styleOverrides: {
         // Hover swaps the two styles: filled -> outline, outline -> filled.
