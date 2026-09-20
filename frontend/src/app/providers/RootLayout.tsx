@@ -1,5 +1,6 @@
 import { keyframes } from '@emotion/react'
 import { Box } from '@mui/material'
+import { useLayoutEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 
 const fadeIn = keyframes`
@@ -23,6 +24,15 @@ function routeGroup(pathname: string): string {
 // redirect (e.g. Home -> Login) just popped in with nothing.
 export function RootLayout() {
   const location = useLocation()
+
+  // React Router doesn't reset scroll on navigation (it's an SPA, not a real
+  // page load) — without this, opening a product from partway down the
+  // catalog grid lands on the new page already scrolled to that offset.
+  // Keyed on pathname only, not the full location, so filter changes that
+  // just update the query string (same page) don't yank the scroll around.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
 
   return (
     <Box key={routeGroup(location.pathname)} sx={{ animation: `${fadeIn} 600ms cubic-bezier(0.22, 1, 0.36, 1)` }}>
