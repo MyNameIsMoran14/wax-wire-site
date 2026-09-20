@@ -1,5 +1,5 @@
-import { Button, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
-import type { ProductType } from '@/entities/product'
+import { Button, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
+import type { Genre, ProductType } from '@/entities/product'
 import type { CatalogFiltersState } from '../model/useCatalogFilters'
 
 const TYPE_OPTIONS: { value: CatalogFiltersState['type']; label: string }[] = [
@@ -11,11 +11,12 @@ const TYPE_OPTIONS: { value: CatalogFiltersState['type']; label: string }[] = [
 
 interface CatalogFiltersProps {
   filters: CatalogFiltersState
+  genres: Genre[]
   onFilterChange: <K extends keyof CatalogFiltersState>(key: K, value: CatalogFiltersState[K]) => void
   onReset: () => void
 }
 
-export function CatalogFilters({ filters, onFilterChange, onReset }: CatalogFiltersProps) {
+export function CatalogFilters({ filters, genres, onFilterChange, onReset }: CatalogFiltersProps) {
   return (
     <Stack spacing={4} sx={{ width: { xs: '100%', md: 220 }, flexShrink: 0 }}>
       <TextField
@@ -51,6 +52,26 @@ export function CatalogFilters({ filters, onFilterChange, onReset }: CatalogFilt
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
+      </Stack>
+
+      <Stack spacing={1.5}>
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          Жанр
+        </Typography>
+        <TextField
+          select
+          size="small"
+          value={filters.genre}
+          onChange={(e) => onFilterChange('genre', e.target.value)}
+          fullWidth
+        >
+          <MenuItem value="">Все жанры</MenuItem>
+          {genres.map((genre) => (
+            <MenuItem key={genre.id} value={String(genre.id)}>
+              {genre.name}
+            </MenuItem>
+          ))}
+        </TextField>
       </Stack>
 
       <Stack spacing={1.5}>
