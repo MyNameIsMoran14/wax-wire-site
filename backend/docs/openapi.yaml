@@ -54,7 +54,7 @@ info:
     | 500 | `internal_error` | Ошибка сервера |
 
 servers:
-  - url: http://localhost:8000/api/v1
+  - url: http://localhost:8181/api/v1
     description: Локальная разработка
 
 tags:
