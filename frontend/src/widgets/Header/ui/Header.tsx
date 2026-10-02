@@ -63,9 +63,13 @@ export function Header() {
                 {link.label}
               </Button>
             ) : (
-              <Button key={link.label} color="inherit">
+              // Plain (non-interactive) text on purpose: this page doesn't
+              // exist yet. A focusable <button> with no onClick would be a
+              // dead stop for keyboard/screen-reader users — worse than an
+              // honest placeholder. Swap to a real nav Button once it ships.
+              <Typography key={link.label} variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
                 {link.label}
-              </Button>
+              </Typography>
             ),
           )}
         </Stack>
