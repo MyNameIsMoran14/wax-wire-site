@@ -62,7 +62,7 @@ export function AdminPage() {
   }
 
   return (
-    <Stack>
+    <Stack sx={{ minHeight: '100vh' }}>
       <Header />
       <Stack spacing={3} sx={{ px: { xs: 3, md: 8 }, py: 6 }}>
         <Typography variant="h4" sx={{ fontWeight: 700 }}>

@@ -7,6 +7,8 @@ declare(strict_types=1);
 use App\Controllers\Admin\GenreController as AdminGenreController;
 use App\Controllers\Admin\ProductController as AdminProductController;
 use App\Controllers\AuthController;
+use App\Controllers\CartController;
+use App\Controllers\FavoriteController;
 use App\Controllers\GenreController;
 use App\Controllers\ProductController;
 
@@ -32,3 +34,12 @@ $router->get('/api/v1/admin/genres', [AdminGenreController::class, 'index']);
 $router->post('/api/v1/admin/genres', [AdminGenreController::class, 'store']);
 $router->patch('/api/v1/admin/genres/{id}', [AdminGenreController::class, 'update']);
 $router->delete('/api/v1/admin/genres/{id}', [AdminGenreController::class, 'destroy']);
+
+$router->get('/api/v1/cart', [CartController::class, 'index']);
+$router->post('/api/v1/cart/items', [CartController::class, 'store']);
+$router->patch('/api/v1/cart/items/{productId}', [CartController::class, 'update']);
+$router->delete('/api/v1/cart/items/{productId}', [CartController::class, 'destroy']);
+
+$router->get('/api/v1/favorites', [FavoriteController::class, 'index']);
+$router->post('/api/v1/favorites/{productId}', [FavoriteController::class, 'store']);
+$router->delete('/api/v1/favorites/{productId}', [FavoriteController::class, 'destroy']);

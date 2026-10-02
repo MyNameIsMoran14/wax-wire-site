@@ -2,8 +2,8 @@ import { KeyboardArrowDown } from '@mui/icons-material'
 import { AppBar, Avatar, Badge, Button, InputBase, Menu, MenuItem, Stack, Toolbar, Typography } from '@mui/material'
 import { type FormEvent, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
-import { useCartStore } from '@/entities/cart'
-import { useFavoriteStore } from '@/entities/favorite'
+import { useCart } from '@/entities/cart'
+import { useFavorites } from '@/entities/favorite'
 import { useAuthStore } from '@/entities/user'
 
 const NAV_LINKS = [
@@ -19,8 +19,8 @@ export function Header() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
-  const favoriteCount = useFavoriteStore((s) => s.ids.size)
-  const cartCount = useCartStore((s) => s.items.reduce((sum, item) => sum + item.quantity, 0))
+  const favoriteCount = useFavorites().data?.length ?? 0
+  const cartCount = useCart().data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0
 
   const handleSearchSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -100,7 +100,7 @@ export function Header() {
             color="primary"
             sx={{ display: { xs: 'none', sm: 'inline-flex' }, '& .MuiBadge-badge': { right: -10, top: 2 } }}
           >
-            <Button color="inherit" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
+            <Button component={RouterLink} to="/favorites" color="inherit" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
               Избранное
             </Button>
           </Badge>
@@ -110,7 +110,9 @@ export function Header() {
             color="primary"
             sx={{ '& .MuiBadge-badge': { right: -10, top: 2 } }}
           >
-            <Button color="inherit">Корзина</Button>
+            <Button component={RouterLink} to="/cart" color="inherit">
+              Корзина
+            </Button>
           </Badge>
 
           {user ? (

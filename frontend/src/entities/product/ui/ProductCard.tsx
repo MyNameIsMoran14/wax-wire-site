@@ -1,6 +1,7 @@
 import { Box, Stack, Typography } from '@mui/material'
-import { Link as RouterLink } from 'react-router-dom'
-import { useFavoriteStore } from '@/entities/favorite'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { useFavorites, useToggleFavorite } from '@/entities/favorite'
+import { useAuthStore } from '@/entities/user'
 import { resolveAssetUrl } from '@/shared/config/env'
 import { PulseHeart } from '@/shared/ui/PulseHeart'
 import type { Product } from '../model/types'
@@ -10,8 +11,19 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
-  const liked = useFavoriteStore((state) => state.ids.has(product.id))
-  const toggleFavorite = useFavoriteStore((state) => state.toggle)
+  const navigate = useNavigate()
+  const isAuthenticated = useAuthStore((s) => s.status === 'authenticated')
+  const favorites = useFavorites()
+  const toggleFavorite = useToggleFavorite()
+  const liked = favorites.data?.some((p) => p.id === product.id) ?? false
+
+  const handleToggleFavorite = () => {
+    if (!isAuthenticated) {
+      navigate('/login')
+      return
+    }
+    toggleFavorite.mutate({ productId: product.id, isFavorited: liked })
+  }
 
   return (
     <Stack
@@ -51,7 +63,7 @@ export function ProductCard({ product }: ProductCardProps) {
             liked={liked}
             showCount={false}
             size={30}
-            onChange={() => toggleFavorite(product.id)}
+            onChange={handleToggleFavorite}
             label="В избранное"
           />
         </Box>

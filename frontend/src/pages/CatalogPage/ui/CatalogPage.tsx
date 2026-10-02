@@ -30,7 +30,7 @@ export function CatalogPage() {
   const total = products.data?.pages[0]?.total ?? 0
 
   return (
-    <Stack>
+    <Stack sx={{ minHeight: '100vh' }}>
       <Header />
 
       <Stack sx={{ px: { xs: 3, md: 8 }, py: 6 }}>

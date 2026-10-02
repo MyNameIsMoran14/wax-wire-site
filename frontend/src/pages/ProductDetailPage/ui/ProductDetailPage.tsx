@@ -1,9 +1,11 @@
-import { Box, Button, CircularProgress, IconButton, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, IconButton, Stack, Typography } from '@mui/material'
 import { useState } from 'react'
-import { Link as RouterLink, useParams } from 'react-router-dom'
-import { useCartStore } from '@/entities/cart'
-import { useFavoriteStore } from '@/entities/favorite'
+import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
+import { useAddToCart } from '@/entities/cart'
+import { useFavorites, useToggleFavorite } from '@/entities/favorite'
 import { useProduct } from '@/entities/product'
+import { useAuthStore } from '@/entities/user'
+import { ApiError } from '@/shared/api/ApiError'
 import { resolveAssetUrl } from '@/shared/config/env'
 import { PulseHeart } from '@/shared/ui/PulseHeart'
 import { Reveal } from '@/shared/ui/Reveal'
@@ -24,16 +26,18 @@ function formatDuration(seconds: number): string {
 
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const product = useProduct(Number(id))
   const [quantity, setQuantity] = useState(1)
 
-  const liked = useFavoriteStore((state) => (product.data ? state.ids.has(product.data.id) : false))
-  const toggleFavorite = useFavoriteStore((state) => state.toggle)
-  const addToCart = useCartStore((state) => state.add)
+  const isAuthenticated = useAuthStore((s) => s.status === 'authenticated')
+  const favorites = useFavorites()
+  const toggleFavorite = useToggleFavorite()
+  const addToCart = useAddToCart()
 
   if (product.isLoading) {
     return (
-      <Stack>
+      <Stack sx={{ minHeight: '100vh' }}>
         <Header />
         <Stack sx={{ alignItems: 'center', py: 12 }}>
           <CircularProgress />
@@ -45,7 +49,7 @@ export function ProductDetailPage() {
 
   if (product.isError || !product.data) {
     return (
-      <Stack>
+      <Stack sx={{ minHeight: '100vh' }}>
         <Header />
         <Reveal>
           <Stack sx={{ alignItems: 'center', py: 12, px: 3, textAlign: 'center' }}>
@@ -64,9 +68,28 @@ export function ProductDetailPage() {
 
   const item = product.data
   const showTracklist = item.type !== 'equipment'
+  const liked = favorites.data?.some((p) => p.id === item.id) ?? false
+
+  const handleToggleFavorite = () => {
+    if (!isAuthenticated) {
+      navigate('/login')
+      return
+    }
+    toggleFavorite.mutate({ productId: item.id, isFavorited: liked })
+  }
+
+  const handleAddToCart = () => {
+    if (!isAuthenticated) {
+      navigate('/login')
+      return
+    }
+    addToCart.mutate({ productId: item.id, quantity })
+  }
+
+  const cartErrorMessage = addToCart.error instanceof ApiError ? addToCart.error.message : null
 
   return (
-    <Stack>
+    <Stack sx={{ minHeight: '100vh' }}>
       <Header />
 
       <Reveal>
@@ -127,7 +150,7 @@ export function ProductDetailPage() {
                 </IconButton>
               </Stack>
 
-              <Button variant="contained" disabled={item.stock === 0} onClick={() => addToCart(item.id, quantity)}>
+              <Button variant="contained" disabled={item.stock === 0} loading={addToCart.isPending} onClick={handleAddToCart}>
                 В корзину
               </Button>
 
@@ -135,10 +158,12 @@ export function ProductDetailPage() {
                 liked={liked}
                 showCount={false}
                 size={26}
-                onChange={() => toggleFavorite(item.id)}
+                onChange={handleToggleFavorite}
                 label="В избранное"
               />
             </Stack>
+
+            {cartErrorMessage && <Alert severity="error">{cartErrorMessage}</Alert>}
 
             {item.description && (
               <Typography variant="body2" color="text.secondary">

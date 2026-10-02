@@ -16,6 +16,9 @@ const fadeIn = keyframes`
 function routeGroup(pathname: string): string {
   if (pathname === '/login' || pathname === '/register') return 'auth'
   if (pathname.startsWith('/catalog')) return 'catalog'
+  if (pathname.startsWith('/admin')) return 'admin'
+  if (pathname === '/cart') return 'cart'
+  if (pathname === '/favorites') return 'favorites'
   return 'home'
 }
 

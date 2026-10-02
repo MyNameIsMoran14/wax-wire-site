@@ -1,1 +1,1 @@
-export { useFavoriteStore } from './model/favoriteStore'
+export { useFavorites, useToggleFavorite } from './model/useFavorites'

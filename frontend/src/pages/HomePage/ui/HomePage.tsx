@@ -23,7 +23,7 @@ export function HomePage() {
   const mounted = useAppReadyStore((s) => s.ready)
 
   return (
-    <Stack>
+    <Stack sx={{ minHeight: '100vh' }}>
       <Header />
 
       <Stack sx={{ alignItems: 'center', pt: 2, pb: 8, px: 3, overflow: 'visible' }}>

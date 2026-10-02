@@ -1,2 +1,2 @@
-export { useCartStore } from './model/cartStore'
-export type { CartItem } from './model/types'
+export type { Cart, CartItem } from './api/cartApi'
+export { useCart, useAddToCart, useSetCartQuantity, useRemoveFromCart } from './model/useCart'
