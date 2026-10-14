@@ -10,6 +10,7 @@ use App\Controllers\AuthController;
 use App\Controllers\CartController;
 use App\Controllers\FavoriteController;
 use App\Controllers\GenreController;
+use App\Controllers\OrderController;
 use App\Controllers\ProductController;
 
 /** @var \App\Core\Router $router */
@@ -43,3 +44,7 @@ $router->delete('/api/v1/cart/items/{productId}', [CartController::class, 'destr
 $router->get('/api/v1/favorites', [FavoriteController::class, 'index']);
 $router->post('/api/v1/favorites/{productId}', [FavoriteController::class, 'store']);
 $router->delete('/api/v1/favorites/{productId}', [FavoriteController::class, 'destroy']);
+
+$router->get('/api/v1/orders', [OrderController::class, 'index']);
+$router->post('/api/v1/orders', [OrderController::class, 'store']);
+$router->get('/api/v1/orders/{id}', [OrderController::class, 'show']);

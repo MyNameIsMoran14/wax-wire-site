@@ -1,7 +1,10 @@
 import { Delete, ShoppingCartOutlined } from '@mui/icons-material'
-import { Alert, Box, Button, CircularProgress, IconButton, Stack, Typography } from '@mui/material'
-import { Link as RouterLink } from 'react-router-dom'
+import { Alert, Box, Button, CircularProgress, IconButton, Stack, TextField, Typography } from '@mui/material'
+import { type FormEvent, useState } from 'react'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useCart, useRemoveFromCart, useSetCartQuantity } from '@/entities/cart'
+import { useCreateOrder } from '@/entities/order'
+import { ApiError } from '@/shared/api/ApiError'
 import { resolveAssetUrl } from '@/shared/config/env'
 import { Reveal } from '@/shared/ui/Reveal'
 import { Footer } from '@/widgets/Footer'
@@ -12,9 +15,25 @@ function formatMoney(value: number | string): string {
 }
 
 export function CartPage() {
+  const navigate = useNavigate()
   const cart = useCart()
   const setQuantity = useSetCartQuantity()
   const removeItem = useRemoveFromCart()
+  const createOrder = useCreateOrder()
+
+  const [address, setAddress] = useState('')
+  const [phone, setPhone] = useState('')
+  const [comment, setComment] = useState('')
+
+  const handleCheckout = (e: FormEvent) => {
+    e.preventDefault()
+    createOrder.mutate(
+      { address, phone, comment: comment.trim() === '' ? undefined : comment },
+      { onSuccess: () => navigate('/orders') },
+    )
+  }
+
+  const checkoutError = createOrder.error instanceof ApiError ? createOrder.error.message : null
 
   return (
     <Stack sx={{ minHeight: '100vh' }}>
@@ -104,6 +123,40 @@ export function CartPage() {
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
                   {formatMoney(cart.data.total)} ₽
                 </Typography>
+              </Stack>
+
+              <Stack component="form" onSubmit={handleCheckout} spacing={2} sx={{ pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  Оформление заказа
+                </Typography>
+
+                {checkoutError && <Alert severity="error">{checkoutError}</Alert>}
+
+                <TextField
+                  label="Адрес доставки"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  required
+                  fullWidth
+                />
+                <TextField label="Телефон" value={phone} onChange={(e) => setPhone(e.target.value)} required fullWidth />
+                <TextField
+                  label="Комментарий"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  multiline
+                  minRows={2}
+                  fullWidth
+                />
+
+                <Button
+                  type="submit"
+                  variant="contained"
+                  loading={createOrder.isPending}
+                  sx={{ borderRadius: 999, alignSelf: 'flex-start', px: 4 }}
+                >
+                  Оформить заказ
+                </Button>
               </Stack>
             </Stack>
           ) : (

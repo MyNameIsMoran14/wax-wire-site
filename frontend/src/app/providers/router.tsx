@@ -5,6 +5,7 @@ import { CatalogPage } from '@/pages/CatalogPage'
 import { FavoritesPage } from '@/pages/FavoritesPage'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
+import { OrdersPage } from '@/pages/OrdersPage'
 import { ProductDetailPage } from '@/pages/ProductDetailPage'
 import { RegisterPage } from '@/pages/RegisterPage'
 import { AuthLayout } from '@/widgets/AuthLayout'
@@ -35,6 +36,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/cart', element: <CartPage /> },
           { path: '/favorites', element: <FavoritesPage /> },
+          { path: '/orders', element: <OrdersPage /> },
         ],
       },
     ],

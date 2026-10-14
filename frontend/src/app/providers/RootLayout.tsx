@@ -19,6 +19,7 @@ function routeGroup(pathname: string): string {
   if (pathname.startsWith('/admin')) return 'admin'
   if (pathname === '/cart') return 'cart'
   if (pathname === '/favorites') return 'favorites'
+  if (pathname.startsWith('/orders')) return 'orders'
   return 'home'
 }
 

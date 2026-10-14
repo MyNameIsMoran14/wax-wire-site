@@ -182,6 +182,19 @@ export function Header() {
                   list: { sx: { p: 1 } },
                 }}
               >
+                <MenuItem
+                  component={RouterLink}
+                  to="/orders"
+                  onClick={() => setMenuAnchor(null)}
+                  sx={{
+                    borderRadius: 1.5,
+                    fontWeight: 500,
+                    transition: 'background-color 300ms ease, color 300ms ease',
+                    '&:hover': { bgcolor: 'rgba(140,47,39,0.08)', color: '#8C2F27' },
+                  }}
+                >
+                  Мои заказы
+                </MenuItem>
                 {user.role === 'admin' && (
                   <MenuItem
                     component={RouterLink}
