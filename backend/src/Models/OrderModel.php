@@ -9,6 +9,8 @@ use Throwable;
 
 class OrderModel
 {
+    public const VALID_STATUSES = ['new', 'processing', 'shipped', 'completed', 'cancelled'];
+
     /**
      * Builds an order from the user's current cart inside one transaction:
      * stock is decremented with the same atomic-claim pattern as refresh-token
@@ -98,6 +100,49 @@ class OrderModel
         $stmt->execute([$orderId, $userId]);
         $order = $stmt->fetch();
         return $order === false ? null : self::toPublic($order);
+    }
+
+    /** @return list<array> All orders across all users, newest first — optionally scoped to one status. */
+    public static function allForAdmin(?string $status = null): array
+    {
+        $sql = 'SELECT o.*, u.name AS user_name, u.email AS user_email FROM orders o JOIN users u ON u.id = o.user_id';
+        $bindings = [];
+        if ($status !== null) {
+            $sql .= ' WHERE o.status = ?';
+            $bindings[] = $status;
+        }
+        $sql .= ' ORDER BY o.id DESC';
+
+        $stmt = Database::connection()->prepare($sql);
+        $stmt->execute($bindings);
+        return array_map([self::class, 'toAdminPublic'], $stmt->fetchAll());
+    }
+
+    public static function findForAdmin(int $orderId): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT o.*, u.name AS user_name, u.email AS user_email FROM orders o JOIN users u ON u.id = o.user_id WHERE o.id = ?',
+        );
+        $stmt->execute([$orderId]);
+        $order = $stmt->fetch();
+        return $order === false ? null : self::toAdminPublic($order);
+    }
+
+    public static function updateStatus(int $orderId, string $status): bool
+    {
+        return Database::table('orders')->where('id', $orderId)->update(['status' => $status]) > 0;
+    }
+
+    public static function toAdminPublic(array $order): array
+    {
+        return [
+            ...self::toPublic($order),
+            'user' => [
+                'id' => (int) $order['user_id'],
+                'name' => $order['user_name'],
+                'email' => $order['user_email'],
+            ],
+        ];
     }
 
     public static function toPublic(array $order): array

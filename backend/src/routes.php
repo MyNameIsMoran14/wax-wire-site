@@ -5,6 +5,7 @@ declare(strict_types=1);
 // Регистрация маршрутов. $router создаётся в public/index.php и передаётся сюда.
 
 use App\Controllers\Admin\GenreController as AdminGenreController;
+use App\Controllers\Admin\OrderController as AdminOrderController;
 use App\Controllers\Admin\ProductController as AdminProductController;
 use App\Controllers\AuthController;
 use App\Controllers\CartController;
@@ -48,3 +49,6 @@ $router->delete('/api/v1/favorites/{productId}', [FavoriteController::class, 'de
 $router->get('/api/v1/orders', [OrderController::class, 'index']);
 $router->post('/api/v1/orders', [OrderController::class, 'store']);
 $router->get('/api/v1/orders/{id}', [OrderController::class, 'show']);
+
+$router->get('/api/v1/admin/orders', [AdminOrderController::class, 'index']);
+$router->patch('/api/v1/admin/orders/{id}/status', [AdminOrderController::class, 'updateStatus']);

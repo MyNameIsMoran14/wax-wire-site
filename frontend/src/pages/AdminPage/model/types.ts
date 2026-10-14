@@ -53,3 +53,24 @@ export function productToFormValues(product: AdminProduct): ProductFormValues {
     description: product.description ?? '',
   }
 }
+
+export type OrderStatus = 'new' | 'processing' | 'shipped' | 'completed' | 'cancelled'
+
+export interface AdminOrderItem {
+  product_id: number | null
+  title_snapshot: string
+  price_snapshot: string
+  quantity: number
+}
+
+export interface AdminOrder {
+  id: number
+  status: OrderStatus
+  total: string
+  address: string
+  phone: string
+  comment: string | null
+  items: AdminOrderItem[]
+  created_at: string
+  user: { id: number; name: string; email: string }
+}
