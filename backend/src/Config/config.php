@@ -30,7 +30,9 @@ function resolve_jwt_secret(): string
 }
 
 return [
-    'db_path' => __DIR__ . '/../../database/vinyl.sqlite',
+    // Overridable so the test runner (tests/bootstrap.php) can point at a
+    // throwaway sqlite file instead of the real one.
+    'db_path' => getenv('DB_PATH') ?: __DIR__ . '/../../database/vinyl.sqlite',
     'jwt_secret' => resolve_jwt_secret(),
     'access_token_ttl' => 15 * 60,           // 15 минут
     'refresh_token_ttl' => 30 * 24 * 60 * 60, // 30 дней

@@ -28,4 +28,12 @@ class Database
     {
         return new QueryBuilder(self::connection(), $table);
     }
+
+    // Releases the PDO handle so the underlying file can be deleted —
+    // Windows (unlike POSIX) refuses to unlink a file while a process still
+    // holds it open, which the test runner needs to do for its throwaway db.
+    public static function disconnect(): void
+    {
+        self::$pdo = null;
+    }
 }

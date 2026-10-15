@@ -171,6 +171,51 @@ class AuthController
         Response::json(['user' => UserModel::toPublic($user)]);
     }
 
+    public function updateProfile(Request $request): void
+    {
+        $user = Auth::requireAuth($request);
+        $data = $request->all();
+
+        $errors = Validator::validate($data, [
+            'name' => ['required'],
+            'email' => ['required', 'email'],
+        ]);
+        if ($errors !== []) {
+            Response::error('validation_error', 'Проверьте введённые данные', 400);
+        }
+
+        $existing = UserModel::findByEmail($data['email']);
+        if ($existing !== null && (int) $existing['id'] !== (int) $user['id']) {
+            Response::error('email_taken', 'Этот email уже зарегистрирован', 409);
+        }
+
+        UserModel::updateProfile((int) $user['id'], (string) $data['name'], (string) $data['email']);
+
+        Response::json(['user' => UserModel::toPublic(UserModel::findById((int) $user['id']))]);
+    }
+
+    public function updatePassword(Request $request): void
+    {
+        $user = Auth::requireAuth($request);
+        $data = $request->all();
+
+        $errors = Validator::validate($data, [
+            'current_password' => ['required'],
+            'new_password' => ['required', 'min:8'],
+        ]);
+        if ($errors !== []) {
+            Response::error('validation_error', 'Проверьте введённые данные', 400);
+        }
+
+        if (!password_verify((string) $data['current_password'], $user['password_hash'])) {
+            Response::error('invalid_credentials', 'Неверный текущий пароль', 401);
+        }
+
+        UserModel::updatePassword((int) $user['id'], password_hash((string) $data['new_password'], PASSWORD_DEFAULT));
+
+        Response::noContent();
+    }
+
     private function respondWithSession(array $user, int $status): void
     {
         $this->setRefreshCookie($this->issueAndStoreRefreshToken((int) $user['id']));

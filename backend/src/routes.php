@@ -21,6 +21,8 @@ $router->post('/api/v1/auth/login', [AuthController::class, 'login']);
 $router->post('/api/v1/auth/refresh', [AuthController::class, 'refresh']);
 $router->post('/api/v1/auth/logout', [AuthController::class, 'logout']);
 $router->get('/api/v1/auth/me', [AuthController::class, 'me']);
+$router->patch('/api/v1/auth/me', [AuthController::class, 'updateProfile']);
+$router->patch('/api/v1/auth/me/password', [AuthController::class, 'updatePassword']);
 
 $router->get('/api/v1/genres', [GenreController::class, 'index']);
 $router->get('/api/v1/products', [ProductController::class, 'index']);

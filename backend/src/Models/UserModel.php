@@ -32,6 +32,19 @@ class UserModel
         ]);
     }
 
+    public static function updateProfile(int $id, string $name, string $email): void
+    {
+        Database::table('users')->where('id', $id)->update([
+            'name' => $name,
+            'email' => self::normalizeEmail($email),
+        ]);
+    }
+
+    public static function updatePassword(int $id, string $passwordHash): void
+    {
+        Database::table('users')->where('id', $id)->update(['password_hash' => $passwordHash]);
+    }
+
     private static function normalizeEmail(string $email): string
     {
         return mb_strtolower(trim($email));
