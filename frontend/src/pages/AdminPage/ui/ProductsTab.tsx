@@ -1,7 +1,6 @@
 import { Delete } from '@mui/icons-material'
 import {
   Alert,
-  Avatar,
   Box,
   CircularProgress,
   IconButton,
@@ -112,7 +111,17 @@ export function ProductsTab({ onEditProduct }: ProductsTabProps) {
                 }}
               >
                 <TableCell>
-                  <Avatar variant="rounded" src={resolveAssetUrl(product.cover_url) ?? undefined} sx={{ width: 40, height: 40, borderRadius: 2 }} />
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 2,
+                      bgcolor: 'divider',
+                      backgroundImage: product.cover_url ? `url(${resolveAssetUrl(product.cover_url)})` : undefined,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                    }}
+                  />
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>

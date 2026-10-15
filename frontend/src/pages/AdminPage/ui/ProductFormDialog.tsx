@@ -1,6 +1,6 @@
 import {
   Alert,
-  Avatar,
+  Box,
   Button,
   Dialog,
   DialogActions,
@@ -98,7 +98,17 @@ export function ProductFormDialog({ open, product, genres, submitting, error, on
 
             {product && (
               <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-                <Avatar variant="rounded" src={resolveAssetUrl(coverUrl) ?? undefined} sx={{ width: 64, height: 64, borderRadius: 3 }} />
+                <Box
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 3,
+                    bgcolor: 'divider',
+                    backgroundImage: coverUrl ? `url(${resolveAssetUrl(coverUrl)})` : undefined,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}
+                />
                 <Button
                   component="label"
                   variant="outlined"

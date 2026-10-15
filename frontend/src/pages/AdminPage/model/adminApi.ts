@@ -1,5 +1,5 @@
 import { httpClient } from '@/shared/api/httpClient'
-import type { AdminProduct, Genre, ProductFormValues } from './types'
+import type { AdminOrder, AdminProduct, Genre, OrderStatus, ProductFormValues } from './types'
 
 function toPayload(values: ProductFormValues) {
   return {
@@ -30,4 +30,9 @@ export const adminApi = {
   createGenre: (name: string) => httpClient.post<Genre>('/admin/genres', { name: name.trim() }),
   updateGenre: (id: number, name: string) => httpClient.patch<Genre>(`/admin/genres/${id}`, { name: name.trim() }),
   deleteGenre: (id: number) => httpClient.delete<void>(`/admin/genres/${id}`),
+
+  fetchOrders: (status?: OrderStatus) =>
+    httpClient.get<AdminOrder[]>(`/admin/orders${status ? `?status=${status}` : ''}`),
+  updateOrderStatus: (id: number, status: OrderStatus) =>
+    httpClient.patch<AdminOrder>(`/admin/orders/${id}/status`, { status }),
 }

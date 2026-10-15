@@ -5,9 +5,13 @@ declare(strict_types=1);
 // Регистрация маршрутов. $router создаётся в public/index.php и передаётся сюда.
 
 use App\Controllers\Admin\GenreController as AdminGenreController;
+use App\Controllers\Admin\OrderController as AdminOrderController;
 use App\Controllers\Admin\ProductController as AdminProductController;
 use App\Controllers\AuthController;
+use App\Controllers\CartController;
+use App\Controllers\FavoriteController;
 use App\Controllers\GenreController;
+use App\Controllers\OrderController;
 use App\Controllers\ProductController;
 
 /** @var \App\Core\Router $router */
@@ -32,3 +36,19 @@ $router->get('/api/v1/admin/genres', [AdminGenreController::class, 'index']);
 $router->post('/api/v1/admin/genres', [AdminGenreController::class, 'store']);
 $router->patch('/api/v1/admin/genres/{id}', [AdminGenreController::class, 'update']);
 $router->delete('/api/v1/admin/genres/{id}', [AdminGenreController::class, 'destroy']);
+
+$router->get('/api/v1/cart', [CartController::class, 'index']);
+$router->post('/api/v1/cart/items', [CartController::class, 'store']);
+$router->patch('/api/v1/cart/items/{productId}', [CartController::class, 'update']);
+$router->delete('/api/v1/cart/items/{productId}', [CartController::class, 'destroy']);
+
+$router->get('/api/v1/favorites', [FavoriteController::class, 'index']);
+$router->post('/api/v1/favorites/{productId}', [FavoriteController::class, 'store']);
+$router->delete('/api/v1/favorites/{productId}', [FavoriteController::class, 'destroy']);
+
+$router->get('/api/v1/orders', [OrderController::class, 'index']);
+$router->post('/api/v1/orders', [OrderController::class, 'store']);
+$router->get('/api/v1/orders/{id}', [OrderController::class, 'show']);
+
+$router->get('/api/v1/admin/orders', [AdminOrderController::class, 'index']);
+$router->patch('/api/v1/admin/orders/{id}/status', [AdminOrderController::class, 'updateStatus']);

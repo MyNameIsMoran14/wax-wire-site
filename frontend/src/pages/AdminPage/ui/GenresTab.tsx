@@ -1,5 +1,5 @@
 import { Close, Delete, Edit } from '@mui/icons-material'
-import { Alert, Avatar, Box, Button, CircularProgress, IconButton, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, IconButton, Stack, TextField, Typography } from '@mui/material'
 import { type PointerEvent as ReactPointerEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { resolveAssetUrl } from '@/shared/config/env'
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
@@ -137,10 +137,17 @@ export function GenresTab() {
                 <Stack spacing={0.5}>
                   {genreAlbums.map((album: AdminProduct) => (
                     <Stack key={album.id} direction="row" spacing={2} sx={{ alignItems: 'center', borderRadius: 2, px: 1, py: 0.75 }}>
-                      <Avatar
-                        variant="rounded"
-                        src={resolveAssetUrl(album.cover_url) ?? undefined}
-                        sx={{ width: 36, height: 36, borderRadius: 1.5 }}
+                      <Box
+                        sx={{
+                          width: 36,
+                          height: 36,
+                          flexShrink: 0,
+                          borderRadius: 1.5,
+                          bgcolor: 'divider',
+                          backgroundImage: album.cover_url ? `url(${resolveAssetUrl(album.cover_url)})` : undefined,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                        }}
                       />
                       <Stack sx={{ flexGrow: 1, minWidth: 0 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>

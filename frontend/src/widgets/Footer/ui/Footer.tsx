@@ -9,7 +9,12 @@ const LINK_COLUMNS = [
 
 export function Footer() {
   return (
-    <Box component="footer" sx={{ bgcolor: '#17140F', color: '#F7F3EC', px: { xs: 3, md: 8 }, pt: 8, pb: 4 }}>
+    // mt: 'auto' is what pins this to the bottom of the viewport on
+    // short pages — every page's root is a column flexbox at least
+    // 100vh tall, so this eats whatever space is left above it instead
+    // of floating right under the content with a gap of raw background
+    // beneath it.
+    <Box component="footer" sx={{ mt: 'auto', bgcolor: '#17140F', color: '#F7F3EC', px: { xs: 3, md: 8 }, pt: 8, pb: 4 }}>
       {/* Brand and columns share one grid row instead of columns being
           position:absolute — both stay in normal flow, so the row's height
           is always the taller of the two automatically (no more manual

@@ -1,21 +1,31 @@
 import { Add } from '@mui/icons-material'
-import { Alert, Button, Stack, Tab, Tabs, TextField, Typography } from '@mui/material'
+import { Alert, Button, MenuItem, Select, type SelectChangeEvent, Stack, Tab, Tabs, TextField, Typography } from '@mui/material'
 import { type FormEvent, useState } from 'react'
 import { ApiError } from '@/shared/api/ApiError'
 import { Footer } from '@/widgets/Footer'
 import { Header } from '@/widgets/Header'
 import { useAdminGenres, useCreateGenre } from '../model/useAdminGenres'
 import { useCreateProduct, useUpdateProduct } from '../model/useAdminProducts'
-import type { AdminProduct, ProductFormValues } from '../model/types'
+import type { AdminProduct, OrderStatus, ProductFormValues } from '../model/types'
 import { GenresTab } from './GenresTab'
+import { OrdersTab } from './OrdersTab'
 import { ProductFormDialog } from './ProductFormDialog'
 import { ProductsTab } from './ProductsTab'
 
-type AdminTab = 'products' | 'genres'
+type AdminTab = 'products' | 'genres' | 'orders'
+
+const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  new: 'Новый',
+  processing: 'В обработке',
+  shipped: 'В пути',
+  completed: 'Завершён',
+  cancelled: 'Отменён',
+}
 
 export function AdminPage() {
   const [tab, setTab] = useState<AdminTab>('products')
   const genres = useAdminGenres()
+  const [orderStatusFilter, setOrderStatusFilter] = useState<OrderStatus | ''>('')
 
   // Product create/edit dialog lives here, not in ProductsTab — it's opened
   // both from the header button below and from clicking a row in the table.
@@ -62,7 +72,7 @@ export function AdminPage() {
   }
 
   return (
-    <Stack>
+    <Stack sx={{ minHeight: '100vh' }}>
       <Header />
       <Stack spacing={3} sx={{ px: { xs: 3, md: 8 }, py: 6 }}>
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
@@ -103,13 +113,14 @@ export function AdminPage() {
           >
             <Tab value="products" label="Товары" />
             <Tab value="genres" label="Жанры" />
+            <Tab value="orders" label="Заказы" />
           </Tabs>
 
           {tab === 'products' ? (
             <Button variant="contained" startIcon={<Add />} onClick={openCreateProduct} sx={{ borderRadius: 999, px: 3 }}>
               Добавить товар
             </Button>
-          ) : (
+          ) : tab === 'genres' ? (
             <Stack component="form" direction="row" spacing={1.5} onSubmit={handleCreateGenre}>
               <TextField
                 size="small"
@@ -128,12 +139,33 @@ export function AdminPage() {
                 Добавить
               </Button>
             </Stack>
+          ) : (
+            <Select
+              size="small"
+              displayEmpty
+              value={orderStatusFilter}
+              onChange={(e: SelectChangeEvent) => setOrderStatusFilter(e.target.value as OrderStatus | '')}
+              sx={{ minWidth: 180, borderRadius: 999, '& .MuiOutlinedInput-notchedOutline': { borderRadius: 999 } }}
+            >
+              <MenuItem value="">Все статусы</MenuItem>
+              {(Object.keys(ORDER_STATUS_LABELS) as OrderStatus[]).map((status) => (
+                <MenuItem key={status} value={status}>
+                  {ORDER_STATUS_LABELS[status]}
+                </MenuItem>
+              ))}
+            </Select>
           )}
         </Stack>
 
         {tab === 'genres' && genreError && <Alert severity="error">{genreError}</Alert>}
 
-        {tab === 'products' ? <ProductsTab onEditProduct={openEditProduct} /> : <GenresTab />}
+        {tab === 'products' ? (
+          <ProductsTab onEditProduct={openEditProduct} />
+        ) : tab === 'genres' ? (
+          <GenresTab />
+        ) : (
+          <OrdersTab statusFilter={orderStatusFilter || undefined} />
+        )}
       </Stack>
       <Footer />
 

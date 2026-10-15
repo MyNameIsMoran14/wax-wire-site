@@ -2,8 +2,8 @@ import { KeyboardArrowDown } from '@mui/icons-material'
 import { AppBar, Avatar, Badge, Button, InputBase, Menu, MenuItem, Stack, Toolbar, Typography } from '@mui/material'
 import { type FormEvent, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
-import { useCartStore } from '@/entities/cart'
-import { useFavoriteStore } from '@/entities/favorite'
+import { useCart } from '@/entities/cart'
+import { useFavorites } from '@/entities/favorite'
 import { useAuthStore } from '@/entities/user'
 
 const NAV_LINKS = [
@@ -19,8 +19,8 @@ export function Header() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
-  const favoriteCount = useFavoriteStore((s) => s.ids.size)
-  const cartCount = useCartStore((s) => s.items.reduce((sum, item) => sum + item.quantity, 0))
+  const favoriteCount = useFavorites().data?.length ?? 0
+  const cartCount = useCart().data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0
 
   const handleSearchSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -63,9 +63,13 @@ export function Header() {
                 {link.label}
               </Button>
             ) : (
-              <Button key={link.label} color="inherit">
+              // Plain (non-interactive) text on purpose: this page doesn't
+              // exist yet. A focusable <button> with no onClick would be a
+              // dead stop for keyboard/screen-reader users — worse than an
+              // honest placeholder. Swap to a real nav Button once it ships.
+              <Typography key={link.label} variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
                 {link.label}
-              </Button>
+              </Typography>
             ),
           )}
         </Stack>
@@ -100,7 +104,7 @@ export function Header() {
             color="primary"
             sx={{ display: { xs: 'none', sm: 'inline-flex' }, '& .MuiBadge-badge': { right: -10, top: 2 } }}
           >
-            <Button color="inherit" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
+            <Button component={RouterLink} to="/favorites" color="inherit" sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
               Избранное
             </Button>
           </Badge>
@@ -110,7 +114,9 @@ export function Header() {
             color="primary"
             sx={{ '& .MuiBadge-badge': { right: -10, top: 2 } }}
           >
-            <Button color="inherit">Корзина</Button>
+            <Button component={RouterLink} to="/cart" color="inherit">
+              Корзина
+            </Button>
           </Badge>
 
           {user ? (
@@ -176,6 +182,19 @@ export function Header() {
                   list: { sx: { p: 1 } },
                 }}
               >
+                <MenuItem
+                  component={RouterLink}
+                  to="/orders"
+                  onClick={() => setMenuAnchor(null)}
+                  sx={{
+                    borderRadius: 1.5,
+                    fontWeight: 500,
+                    transition: 'background-color 300ms ease, color 300ms ease',
+                    '&:hover': { bgcolor: 'rgba(140,47,39,0.08)', color: '#8C2F27' },
+                  }}
+                >
+                  Мои заказы
+                </MenuItem>
                 {user.role === 'admin' && (
                   <MenuItem
                     component={RouterLink}

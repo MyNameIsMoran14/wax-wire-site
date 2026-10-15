@@ -16,6 +16,11 @@ class AuthController
 {
     private const REFRESH_COOKIE = 'refresh_token';
     private const REFRESH_TTL_DAYS = 30;
+    // How long after a token's rotation a "this token is already revoked"
+    // sighting is still chalked up to an ordinary multi-tab race rather than
+    // treated as proof of theft. Real attackers replay stolen tokens well
+    // after the fact, not within the same instant as the legitimate rotation.
+    private const REUSE_GRACE_SECONDS = 5;
     // A valid-format bcrypt hash of an unguessable string nobody could ever type
     // as a password. Used to keep password_verify()'s cost constant when the
     // email doesn't exist, so "no such user" and "wrong password" take the same time.
@@ -92,11 +97,23 @@ class AuthController
         }
 
         if ($stored['revoked_at'] !== null) {
-            // This exact token was already rotated away once before. The only
-            // way to see it again is a stolen copy being replayed — kill every
-            // session for this account rather than just rejecting this one request.
-            RefreshTokenModel::revokeAllForUser((int) $stored['user_id']);
-            Response::error('unauthorized', 'Обнаружено повторное использование токена — все сессии завершены', 401);
+            // This exact token was already rotated away once before — but
+            // "already revoked" alone doesn't prove theft. A single-threaded
+            // dev server processes requests one at a time, so two browser
+            // tabs reloading at once produce exactly this: tab A's request
+            // runs first and rotates the token, then tab B's request (sent
+            // at basically the same moment, using the now-stale cookie) sees
+            // it as already-revoked purely because it got processed second.
+            // Nuking every session here would kill tab A's brand-new token
+            // along with it. A short grace window tells the two apart: a
+            // real thief replaying a stolen token does so well after the
+            // legitimate rotation, not within the same instant.
+            $revokedSecondsAgo = time() - strtotime($stored['revoked_at']);
+            if ($revokedSecondsAgo > self::REUSE_GRACE_SECONDS) {
+                RefreshTokenModel::revokeAllForUser((int) $stored['user_id']);
+                Response::error('unauthorized', 'Обнаружено повторное использование токена — все сессии завершены', 401);
+            }
+            Response::error('unauthorized', 'Токен уже обновлён в другом месте — попробуйте ещё раз', 401);
         }
 
         if (strtotime($stored['expires_at']) <= time()) {
@@ -111,9 +128,15 @@ class AuthController
         // а не два отдельных шага с окном для гонки между ними.
         if (!RefreshTokenModel::revokeIfActive($hash)) {
             // Проиграли гонку — кто-то другой отозвал этот токен долю секунды
-            // назад. Расцениваем как повторное использование.
-            RefreshTokenModel::revokeAllForUser((int) $stored['user_id']);
-            Response::error('unauthorized', 'Обнаружено повторное использование токена — все сессии завершены', 401);
+            // назад. Сам по себе этот случай не доказывает кражу (две вкладки,
+            // перезагруженные одновременно, устроят ровно такую же гонку) —
+            // раньше здесь стоял revokeAllForUser(), но он мог убить и
+            // СВЕЖИЙ токен победителя, если его INSERT успевал раньше нашего
+            // UPDATE: невиновный мультивкладочный юзер вылетал отовсюду с
+            // ложным "кража обнаружена". Настоящая кража (повторное предъявление
+            // уже мёртвого токена) ловится проверкой revoked_at выше и там
+            // revokeAllForUser остаётся — это и есть однозначный сигнал.
+            Response::error('unauthorized', 'Токен уже обновлён в другом месте — попробуйте ещё раз', 401);
         }
 
         $user = UserModel::findById((int) $stored['user_id']);

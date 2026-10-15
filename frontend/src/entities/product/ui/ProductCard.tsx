@@ -1,6 +1,8 @@
 import { Box, Stack, Typography } from '@mui/material'
-import { Link as RouterLink } from 'react-router-dom'
-import { useFavoriteStore } from '@/entities/favorite'
+import { useState } from 'react'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { useFavorites, useToggleFavorite } from '@/entities/favorite'
+import { useAuthStore } from '@/entities/user'
 import { resolveAssetUrl } from '@/shared/config/env'
 import { PulseHeart } from '@/shared/ui/PulseHeart'
 import type { Product } from '../model/types'
@@ -10,8 +12,28 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
-  const liked = useFavoriteStore((state) => state.ids.has(product.id))
-  const toggleFavorite = useFavoriteStore((state) => state.toggle)
+  const navigate = useNavigate()
+  const isAuthenticated = useAuthStore((s) => s.status === 'authenticated')
+  const favorites = useFavorites()
+  const toggleFavorite = useToggleFavorite()
+  const liked = favorites.data?.some((p) => p.id === product.id) ?? false
+
+  // PulseHeart flips its own visual state optimistically mid-animation,
+  // independent of the `liked` prop — if the toggle request fails, the
+  // prop never changes (nothing to re-sync from), so the heart is left
+  // showing the wrong state. Remounting it forces it back to the real value.
+  const [errorResetKey, setErrorResetKey] = useState(0)
+
+  const handleToggleFavorite = () => {
+    if (!isAuthenticated) {
+      navigate('/login')
+      return
+    }
+    toggleFavorite.mutate(
+      { productId: product.id, isFavorited: liked },
+      { onError: () => setErrorResetKey((k) => k + 1) },
+    )
+  }
 
   return (
     <Stack
@@ -48,10 +70,11 @@ export function ProductCard({ product }: ProductCardProps) {
           sx={{ position: 'absolute', top: 8, right: 8 }}
         >
           <PulseHeart
+            key={errorResetKey}
             liked={liked}
             showCount={false}
             size={30}
-            onChange={() => toggleFavorite(product.id)}
+            onChange={handleToggleFavorite}
             label="В избранное"
           />
         </Box>
