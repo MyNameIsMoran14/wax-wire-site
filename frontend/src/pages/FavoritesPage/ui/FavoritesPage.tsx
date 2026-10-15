@@ -1,5 +1,5 @@
 import { FavoriteBorder } from '@mui/icons-material'
-import { Box, Button, CircularProgress, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, Stack, Typography } from '@mui/material'
 import { Link as RouterLink } from 'react-router-dom'
 import { useFavorites } from '@/entities/favorite'
 import { ProductCard } from '@/entities/product'
@@ -24,6 +24,8 @@ export function FavoritesPage() {
             <Stack sx={{ alignItems: 'center', py: 10 }}>
               <CircularProgress />
             </Stack>
+          ) : favorites.isError ? (
+            <Alert severity="error">Не удалось загрузить избранное</Alert>
           ) : favorites.data && favorites.data.length > 0 ? (
             <Box
               sx={{

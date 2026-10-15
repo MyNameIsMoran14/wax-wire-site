@@ -122,9 +122,15 @@ class ProductController
     {
         Auth::requireRole($request, 'admin');
 
-        if (!ctype_digit($id) || !ProductModel::delete((int) $id)) {
+        if (!ctype_digit($id)) {
             Response::error('product_not_found', 'Товар не найден', 404);
         }
+        $product = ProductModel::findById((int) $id);
+        if ($product === null || !ProductModel::delete((int) $id)) {
+            Response::error('product_not_found', 'Товар не найден', 404);
+        }
+
+        self::deleteCoverFile($product['cover_url']);
 
         Response::noContent();
     }
@@ -133,7 +139,11 @@ class ProductController
     {
         Auth::requireRole($request, 'admin');
 
-        if (!ctype_digit($id) || ProductModel::findById((int) $id) === null) {
+        if (!ctype_digit($id)) {
+            Response::error('product_not_found', 'Товар не найден', 404);
+        }
+        $product = ProductModel::findById((int) $id);
+        if ($product === null) {
             Response::error('product_not_found', 'Товар не найден', 404);
         }
         $productId = (int) $id;
@@ -166,6 +176,10 @@ class ProductController
             Response::error('internal_error', 'Не удалось сохранить файл', 500);
         }
 
+        // Old cover is only deleted after the new one is safely on disk —
+        // if move_uploaded_file() above had failed, the product still keeps
+        // its previous (working) image instead of ending up with none.
+        self::deleteCoverFile($product['cover_url']);
         ProductModel::setCoverUrl($productId, '/uploads/covers/' . $filename);
 
         Response::json(ProductModel::toDetailedPublic(ProductModel::findById($productId)));
@@ -174,5 +188,19 @@ class ProductController
     private static function parseNullableInt(mixed $value): ?int
     {
         return $value === null || $value === '' ? null : (int) $value;
+    }
+
+    // Covers are never shared between products (filenames are random), so
+    // it's always safe to remove the old file once it's no longer referenced —
+    // without this, every replace/delete left the bytes on disk forever.
+    private static function deleteCoverFile(?string $coverUrl): void
+    {
+        if ($coverUrl === null) {
+            return;
+        }
+        $path = __DIR__ . '/../../../public' . $coverUrl;
+        if (is_file($path)) {
+            unlink($path);
+        }
     }
 }

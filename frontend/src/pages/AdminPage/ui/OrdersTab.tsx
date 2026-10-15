@@ -13,6 +13,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material'
+import { useEffect, useState } from 'react'
 import { useAdminOrders, useUpdateOrderStatus } from '../model/useAdminOrders'
 import type { AdminOrder, OrderStatus } from '../model/types'
 
@@ -36,7 +37,6 @@ interface OrdersTabProps {
 
 export function OrdersTab({ statusFilter }: OrdersTabProps) {
   const orders = useAdminOrders(statusFilter)
-  const updateStatus = useUpdateOrderStatus()
 
   if (orders.isLoading) {
     return (
@@ -75,11 +75,7 @@ export function OrdersTab({ statusFilter }: OrdersTabProps) {
         </TableHead>
         <TableBody>
           {items.map((order) => (
-            <OrderRow
-              key={order.id}
-              order={order}
-              onStatusChange={(status) => updateStatus.mutate({ id: order.id, status })}
-            />
+            <OrderRow key={order.id} order={order} />
           ))}
         </TableBody>
       </Table>
@@ -93,8 +89,33 @@ export function OrdersTab({ statusFilter }: OrdersTabProps) {
   )
 }
 
-function OrderRow({ order, onStatusChange }: { order: AdminOrder; onStatusChange: (status: OrderStatus) => void }) {
+function OrderRow({ order }: { order: AdminOrder }) {
+  const updateStatus = useUpdateOrderStatus()
   const itemsSummary = order.items.map((item) => `${item.title_snapshot} ×${item.quantity}`).join(', ')
+
+  // The Select is controlled by the query cache value, which only updates
+  // after the PATCH round-trips and the list refetches — without this, every
+  // status change visually snaps back to the old value for a moment (looks
+  // like the click didn't register) before jumping to the new one.
+  // `pendingStatus` shows the picked value immediately and clears itself
+  // once the real order.status catches up, or on error (revert).
+  const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null)
+  const displayStatus = pendingStatus ?? order.status
+
+  useEffect(() => {
+    if (pendingStatus !== null && order.status === pendingStatus) {
+      setPendingStatus(null)
+    }
+  }, [order.status, pendingStatus])
+
+  const handleChange = (e: SelectChangeEvent) => {
+    const next = e.target.value as OrderStatus
+    setPendingStatus(next)
+    updateStatus.mutate(
+      { id: order.id, status: next },
+      { onError: () => setPendingStatus(null) },
+    )
+  }
 
   return (
     <TableRow sx={{ '&:last-of-type .MuiTableCell-root': { border: 0 } }}>
@@ -127,8 +148,8 @@ function OrderRow({ order, onStatusChange }: { order: AdminOrder; onStatusChange
       <TableCell>
         <Select
           size="small"
-          value={order.status}
-          onChange={(e: SelectChangeEvent) => onStatusChange(e.target.value as OrderStatus)}
+          value={displayStatus}
+          onChange={handleChange}
           sx={{ minWidth: 150, borderRadius: 999, '& .MuiOutlinedInput-notchedOutline': { borderRadius: 999 } }}
         >
           {STATUS_OPTIONS.map((status) => (

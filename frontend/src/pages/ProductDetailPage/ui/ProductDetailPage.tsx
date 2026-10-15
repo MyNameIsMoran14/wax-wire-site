@@ -34,6 +34,10 @@ export function ProductDetailPage() {
   const favorites = useFavorites()
   const toggleFavorite = useToggleFavorite()
   const addToCart = useAddToCart()
+  // See ProductCard for why this exists — PulseHeart's optimistic visual
+  // flip doesn't revert itself when the toggle request fails, so a failed
+  // mutation needs a forced remount to snap back to the real liked state.
+  const [heartResetKey, setHeartResetKey] = useState(0)
 
   if (product.isLoading) {
     return (
@@ -75,7 +79,10 @@ export function ProductDetailPage() {
       navigate('/login')
       return
     }
-    toggleFavorite.mutate({ productId: item.id, isFavorited: liked })
+    toggleFavorite.mutate(
+      { productId: item.id, isFavorited: liked },
+      { onError: () => setHeartResetKey((k) => k + 1) },
+    )
   }
 
   const handleAddToCart = () => {
@@ -155,6 +162,7 @@ export function ProductDetailPage() {
               </Button>
 
               <PulseHeart
+                key={heartResetKey}
                 liked={liked}
                 showCount={false}
                 size={26}

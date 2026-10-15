@@ -1,4 +1,5 @@
 import { Box, Stack, Typography } from '@mui/material'
+import { useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useFavorites, useToggleFavorite } from '@/entities/favorite'
 import { useAuthStore } from '@/entities/user'
@@ -17,12 +18,21 @@ export function ProductCard({ product }: ProductCardProps) {
   const toggleFavorite = useToggleFavorite()
   const liked = favorites.data?.some((p) => p.id === product.id) ?? false
 
+  // PulseHeart flips its own visual state optimistically mid-animation,
+  // independent of the `liked` prop — if the toggle request fails, the
+  // prop never changes (nothing to re-sync from), so the heart is left
+  // showing the wrong state. Remounting it forces it back to the real value.
+  const [errorResetKey, setErrorResetKey] = useState(0)
+
   const handleToggleFavorite = () => {
     if (!isAuthenticated) {
       navigate('/login')
       return
     }
-    toggleFavorite.mutate({ productId: product.id, isFavorited: liked })
+    toggleFavorite.mutate(
+      { productId: product.id, isFavorited: liked },
+      { onError: () => setErrorResetKey((k) => k + 1) },
+    )
   }
 
   return (
@@ -60,6 +70,7 @@ export function ProductCard({ product }: ProductCardProps) {
           sx={{ position: 'absolute', top: 8, right: 8 }}
         >
           <PulseHeart
+            key={errorResetKey}
             liked={liked}
             showCount={false}
             size={30}

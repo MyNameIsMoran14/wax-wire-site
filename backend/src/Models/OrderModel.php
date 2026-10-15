@@ -128,9 +128,85 @@ class OrderModel
         return $order === false ? null : self::toAdminPublic($order);
     }
 
+    /**
+     * Cancelling an order doesn't just relabel it — the stock it claimed at
+     * checkout has to come back, or every cancelled order permanently
+     * removes its items from sellable inventory. Symmetric the other way
+     * too: un-cancelling re-claims stock atomically (same conditional
+     * UPDATE pattern as checkout) and can fail with insufficient_stock if
+     * it's been sold elsewhere in the meantime.
+     */
     public static function updateStatus(int $orderId, string $status): bool
     {
-        return Database::table('orders')->where('id', $orderId)->update(['status' => $status]) > 0;
+        $order = self::rawById($orderId);
+        if ($order === null) {
+            return false;
+        }
+
+        $oldStatus = $order['status'];
+        if ($oldStatus === $status) {
+            return true;
+        }
+
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            if ($status === 'cancelled' && $oldStatus !== 'cancelled') {
+                self::restoreStockForItems($orderId);
+            } elseif ($oldStatus === 'cancelled' && $status !== 'cancelled') {
+                if (!self::reclaimStockForItems($orderId)) {
+                    throw new CheckoutException('insufficient_stock', 'Недостаточно товара на складе, чтобы восстановить заказ');
+                }
+            }
+
+            Database::table('orders')->where('id', $orderId)->update(['status' => $status]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+
+        return true;
+    }
+
+    private static function rawById(int $orderId): ?array
+    {
+        $stmt = Database::connection()->prepare('SELECT * FROM orders WHERE id = ?');
+        $stmt->execute([$orderId]);
+        $row = $stmt->fetch();
+        return $row === false ? null : $row;
+    }
+
+    // product_id can be NULL (ON DELETE SET NULL if the product was removed
+    // from the catalog since) — nothing to restore/reclaim for those rows.
+    private static function restoreStockForItems(int $orderId): void
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare('SELECT product_id, quantity FROM order_items WHERE order_id = ? AND product_id IS NOT NULL');
+        $stmt->execute([$orderId]);
+
+        $restoreStmt = $pdo->prepare('UPDATE products SET stock = stock + ? WHERE id = ?');
+        foreach ($stmt->fetchAll() as $item) {
+            $restoreStmt->execute([(int) $item['quantity'], (int) $item['product_id']]);
+        }
+    }
+
+    private static function reclaimStockForItems(int $orderId): bool
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare('SELECT product_id, quantity FROM order_items WHERE order_id = ? AND product_id IS NOT NULL');
+        $stmt->execute([$orderId]);
+
+        $claimStmt = $pdo->prepare('UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?');
+        foreach ($stmt->fetchAll() as $item) {
+            $quantity = (int) $item['quantity'];
+            $claimStmt->execute([$quantity, (int) $item['product_id'], $quantity]);
+            if ($claimStmt->rowCount() === 0) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public static function toAdminPublic(array $order): array
