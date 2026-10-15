@@ -58,4 +58,29 @@ class OrderController
 
         Response::json($order);
     }
+
+    // Customers can only back out of an order before it's actually left the
+    // shop — once it's shipped/completed/already cancelled, cancelling here
+    // is refused rather than silently relabeling a parcel that's in transit.
+    public function cancel(Request $request, string $id): void
+    {
+        $user = Auth::requireAuth($request);
+
+        if (!ctype_digit($id)) {
+            Response::error('order_not_found', 'Заказ не найден', 404);
+        }
+
+        $order = OrderModel::findForUser((int) $id, (int) $user['id']);
+        if ($order === null) {
+            Response::error('order_not_found', 'Заказ не найден', 404);
+        }
+
+        if (!in_array($order['status'], ['new', 'processing'], true)) {
+            Response::error('order_not_cancellable', 'Заказ на этом этапе отменить нельзя', 409);
+        }
+
+        OrderModel::updateStatus((int) $id, 'cancelled');
+
+        Response::json(OrderModel::findForUser((int) $id, (int) $user['id']));
+    }
 }

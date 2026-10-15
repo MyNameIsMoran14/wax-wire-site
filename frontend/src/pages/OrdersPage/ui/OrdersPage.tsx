@@ -1,11 +1,15 @@
 import { Inventory2Outlined } from '@mui/icons-material'
 import { Alert, Box, Button, Chip, CircularProgress, Stack, Typography } from '@mui/material'
+import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
-import { useOrders } from '@/entities/order'
+import { useCancelOrder, useOrders } from '@/entities/order'
 import type { Order, OrderStatus } from '@/entities/order'
+import { ApiError } from '@/shared/api/ApiError'
 import { Reveal } from '@/shared/ui/Reveal'
 import { Footer } from '@/widgets/Footer'
 import { Header } from '@/widgets/Header'
+
+const CANCELLABLE_STATUSES: OrderStatus[] = ['new', 'processing']
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   new: 'Новый',
@@ -77,6 +81,20 @@ export function OrdersPage() {
 }
 
 function OrderCard({ order }: { order: Order }) {
+  const cancelOrder = useCancelOrder()
+  const [confirming, setConfirming] = useState(false)
+
+  const errorMessage = cancelOrder.error instanceof ApiError ? cancelOrder.error.message : null
+  const canCancel = CANCELLABLE_STATUSES.includes(order.status)
+
+  const handleCancel = () => {
+    if (!confirming) {
+      setConfirming(true)
+      return
+    }
+    cancelOrder.mutate(order.id, { onSuccess: () => setConfirming(false) })
+  }
+
   return (
     <Box
       sx={{
@@ -120,6 +138,31 @@ function OrderCard({ order }: { order: Order }) {
         </Typography>
         <Typography sx={{ fontWeight: 700 }}>{formatMoney(order.total)} ₽</Typography>
       </Stack>
+
+      {canCancel && (
+        <Stack direction="row" spacing={2} sx={{ justifyContent: 'flex-end', alignItems: 'center', mt: 2 }}>
+          {confirming && (
+            <Button size="small" onClick={() => setConfirming(false)} disabled={cancelOrder.isPending}>
+              Передумала
+            </Button>
+          )}
+          <Button
+            size="small"
+            color="error"
+            variant={confirming ? 'contained' : 'outlined'}
+            loading={cancelOrder.isPending}
+            onClick={handleCancel}
+          >
+            {confirming ? 'Точно отменить?' : 'Отменить заказ'}
+          </Button>
+        </Stack>
+      )}
+
+      {errorMessage && (
+        <Alert severity="error" sx={{ mt: 2 }}>
+          {errorMessage}
+        </Alert>
+      )}
     </Box>
   )
 }
