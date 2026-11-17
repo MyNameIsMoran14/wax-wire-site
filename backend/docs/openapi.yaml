@@ -54,7 +54,7 @@ info:
     | 500 | `internal_error` | Ошибка сервера |
 
 servers:
-  - url: http://localhost:8181/api/v1
+  - url: http://127.0.0.1:8181/api/v1
     description: Локальная разработка
 
 tags:
@@ -103,6 +103,12 @@ components:
         role: { type: string, enum: [user, admin], example: user }
         created_at: { type: string, format: date-time }
 
+    UserResponse:
+      type: object
+      required: [user]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+
     AuthResponse:
       type: object
       properties:
@@ -128,17 +134,34 @@ components:
         id: { type: integer, example: 42 }
         title: { type: string, example: Nevermind }
         artist: { type: string, example: Nirvana }
-        genre: { $ref: '#/components/schemas/Genre' }
+        genre:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            name: { type: string }
         type: { type: string, enum: [vinyl, cd, equipment], example: vinyl }
         price: { type: string, example: "6700.00" }
         stock: { type: integer, example: 5 }
-        year: { type: integer, example: 1991 }
+        year: { type: integer, nullable: true, example: 1991 }
         description: { type: string, nullable: true }
         cover_url: { type: string, nullable: true, example: /uploads/covers/42.jpg }
         tracklist:
           type: array
           items: { $ref: '#/components/schemas/TracklistItem' }
         created_at: { type: string, format: date-time }
+
+    ProductUpdate:
+      type: object
+      properties:
+        title: { type: string }
+        artist: { type: string }
+        genre_id: { type: integer, nullable: true }
+        type: { type: string, enum: [vinyl, cd, equipment] }
+        price: { type: string }
+        stock: { type: integer }
+        year: { type: integer, nullable: true }
+        description: { type: string, nullable: true }
 
     CartItem:
       type: object
@@ -157,7 +180,7 @@ components:
     OrderItem:
       type: object
       properties:
-        product_id: { type: integer, example: 42 }
+        product_id: { type: integer, nullable: true, example: 42 }
         title_snapshot: { type: string, example: Nirvana — Nevermind }
         price_snapshot: { type: string, example: "6700.00" }
         quantity: { type: integer, example: 1 }
@@ -314,6 +337,49 @@ paths:
                 properties:
                   user: { $ref: '#/components/schemas/User' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Profile]
+      summary: Изменить имя/email
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Обновлённый профиль
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: Email занят (email_taken) }
+
+  /auth/me/password:
+    patch:
+      tags: [Profile]
+      summary: Изменить пароль
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password: { type: string, format: password }
+                new_password: { type: string, format: password, minLength: 8 }
+      responses:
+        '204': { description: Пароль изменён }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { description: Нет действующего токена или текущий пароль неверен }
 
   /genres:
     get:
@@ -392,9 +458,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [product_id, quantity]
+              required: [product_id]
               properties:
-                product_id: { type: integer }
+                product_id: { type: integer, minimum: 1 }
                 quantity: { type: integer, minimum: 1, default: 1 }
       responses:
         '200':
@@ -408,6 +474,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /cart/items/{productId}:
     patch:
@@ -432,6 +500,13 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Cart' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Недостаточно товара на складе (insufficient_stock)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
     delete:
       tags: [Cart]
       summary: Убрать товар из корзины
@@ -536,37 +611,22 @@ paths:
               schema: { $ref: '#/components/schemas/Order' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /profile:
-    get:
-      tags: [Profile]
-      summary: Профиль текущего пользователя
-      security: [{ BearerAuth: [] }]
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/User' }
+  /orders/{id}/cancel:
     patch:
-      tags: [Profile]
-      summary: Изменить имя/email
+      tags: [Orders]
+      summary: Отменить новый заказ
       security: [{ BearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name: { type: string }
-                email: { type: string, format: email }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200':
-          description: Обновлённый профиль
+          description: Заказ отменён, остатки восстановлены
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/User' }
-        '400': { $ref: '#/components/responses/ValidationError' }
+              schema: { $ref: '#/components/schemas/Order' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Статус заказа не позволяет его отменить (order_not_cancellable) }
 
   /admin/products:
     get:
@@ -621,7 +681,7 @@ paths:
       requestBody:
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/Product' }
+            schema: { $ref: '#/components/schemas/ProductUpdate' }
       responses:
         '200':
           description: Обновлено
@@ -630,6 +690,8 @@ paths:
               schema: { $ref: '#/components/schemas/Product' }
         '404': { $ref: '#/components/responses/NotFound' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
     delete:
       tags: [Admin]
       summary: Удалить товар
@@ -773,3 +835,10 @@ paths:
               schema: { $ref: '#/components/schemas/AdminOrder' }
         '404': { $ref: '#/components/responses/NotFound' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Недостаточно товара на складе (insufficient_stock)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
