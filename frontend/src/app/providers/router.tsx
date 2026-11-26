@@ -7,6 +7,7 @@ import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { OrdersPage } from '@/pages/OrdersPage'
 import { ProductDetailPage } from '@/pages/ProductDetailPage'
+import { ProfilePage } from '@/pages/ProfilePage'
 import { RegisterPage } from '@/pages/RegisterPage'
 import { AuthLayout } from '@/widgets/AuthLayout'
 import { RequireAdmin } from './RequireAdmin'
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
           { path: '/cart', element: <CartPage /> },
           { path: '/favorites', element: <FavoritesPage /> },
           { path: '/orders', element: <OrdersPage /> },
+          { path: '/profile', element: <ProfilePage /> },
         ],
       },
     ],

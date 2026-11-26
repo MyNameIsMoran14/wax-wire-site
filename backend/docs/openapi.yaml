@@ -54,7 +54,7 @@ info:
     | 500 | `internal_error` | Ошибка сервера |
 
 servers:
-  - url: http://localhost:8181/api/v1
+  - url: http://127.0.0.1:8181/api/v1
     description: Локальная разработка
 
 tags:
@@ -101,7 +101,15 @@ components:
         email: { type: string, format: email, example: liz@example.com }
         name: { type: string, example: Елизавета }
         role: { type: string, enum: [user, admin], example: user }
+        avatar_url: { type: string, nullable: true }
+        banner_url: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
+
+    UserResponse:
+      type: object
+      required: [user]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
 
     AuthResponse:
       type: object
@@ -128,17 +136,34 @@ components:
         id: { type: integer, example: 42 }
         title: { type: string, example: Nevermind }
         artist: { type: string, example: Nirvana }
-        genre: { $ref: '#/components/schemas/Genre' }
+        genre:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            name: { type: string }
         type: { type: string, enum: [vinyl, cd, equipment], example: vinyl }
         price: { type: string, example: "6700.00" }
         stock: { type: integer, example: 5 }
-        year: { type: integer, example: 1991 }
+        year: { type: integer, nullable: true, example: 1991 }
         description: { type: string, nullable: true }
         cover_url: { type: string, nullable: true, example: /uploads/covers/42.jpg }
         tracklist:
           type: array
           items: { $ref: '#/components/schemas/TracklistItem' }
         created_at: { type: string, format: date-time }
+
+    ProductUpdate:
+      type: object
+      properties:
+        title: { type: string }
+        artist: { type: string }
+        genre_id: { type: integer, nullable: true }
+        type: { type: string, enum: [vinyl, cd, equipment] }
+        price: { type: string }
+        stock: { type: integer }
+        year: { type: integer, nullable: true }
+        description: { type: string, nullable: true }
 
     CartItem:
       type: object
@@ -157,7 +182,7 @@ components:
     OrderItem:
       type: object
       properties:
-        product_id: { type: integer, example: 42 }
+        product_id: { type: integer, nullable: true, example: 42 }
         title_snapshot: { type: string, example: Nirvana — Nevermind }
         price_snapshot: { type: string, example: "6700.00" }
         quantity: { type: integer, example: 1 }
@@ -314,6 +339,90 @@ paths:
                 properties:
                   user: { $ref: '#/components/schemas/User' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Profile]
+      summary: Изменить имя/email
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Обновлённый профиль
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: Email занят (email_taken) }
+
+  /auth/me/images/{kind}:
+    parameters:
+      - in: path
+        name: kind
+        required: true
+        schema: { type: string, enum: [avatar, banner] }
+    post:
+      tags: [Profile]
+      summary: Загрузить или заменить аватар/баннер (JPEG, PNG, WebP до 5 МБ и 40 мегапикселей)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, format: binary }
+      responses:
+        '200':
+          description: Оформление сохранено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Неизвестный тип изображения }
+    delete:
+      tags: [Profile]
+      summary: Сбросить аватар или баннер
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: Изображение удалено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Неизвестный тип изображения }
+
+  /auth/me/password:
+    patch:
+      tags: [Profile]
+      summary: Изменить пароль
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password: { type: string, format: password }
+                new_password: { type: string, format: password, minLength: 8 }
+      responses:
+        '204': { description: Пароль изменён }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { description: Нет действующего токена или текущий пароль неверен }
 
   /genres:
     get:
@@ -392,9 +501,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [product_id, quantity]
+              required: [product_id]
               properties:
-                product_id: { type: integer }
+                product_id: { type: integer, minimum: 1 }
                 quantity: { type: integer, minimum: 1, default: 1 }
       responses:
         '200':
@@ -408,6 +517,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /cart/items/{productId}:
     patch:
@@ -432,6 +543,13 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Cart' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Недостаточно товара на складе (insufficient_stock)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
     delete:
       tags: [Cart]
       summary: Убрать товар из корзины
@@ -536,37 +654,22 @@ paths:
               schema: { $ref: '#/components/schemas/Order' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /profile:
-    get:
-      tags: [Profile]
-      summary: Профиль текущего пользователя
-      security: [{ BearerAuth: [] }]
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/User' }
+  /orders/{id}/cancel:
     patch:
-      tags: [Profile]
-      summary: Изменить имя/email
+      tags: [Orders]
+      summary: Отменить новый заказ
       security: [{ BearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name: { type: string }
-                email: { type: string, format: email }
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         '200':
-          description: Обновлённый профиль
+          description: Заказ отменён, остатки восстановлены
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/User' }
-        '400': { $ref: '#/components/responses/ValidationError' }
+              schema: { $ref: '#/components/schemas/Order' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Статус заказа не позволяет его отменить (order_not_cancellable) }
 
   /admin/products:
     get:
@@ -621,7 +724,7 @@ paths:
       requestBody:
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/Product' }
+            schema: { $ref: '#/components/schemas/ProductUpdate' }
       responses:
         '200':
           description: Обновлено
@@ -630,6 +733,8 @@ paths:
               schema: { $ref: '#/components/schemas/Product' }
         '404': { $ref: '#/components/responses/NotFound' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
     delete:
       tags: [Admin]
       summary: Удалить товар
@@ -773,3 +878,115 @@ paths:
               schema: { $ref: '#/components/schemas/AdminOrder' }
         '404': { $ref: '#/components/responses/NotFound' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Недостаточно товара на складе (insufficient_stock)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+
+  /auth/email/code:
+    post:
+      tags: [Auth]
+      summary: Отправить одноразовый код входа на email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Письмо принято сервером отправки. Повторная отправка через 60 секунд
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [challenge_id, expires_in, resend_after]
+                properties:
+                  challenge_id: { type: string }
+                  expires_in: { type: integer, example: 600 }
+                  resend_after: { type: integer, example: 60 }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '429':
+          description: Лимит запросов. При ожидании повторной отправки error.retry_after содержит оставшееся число секунд
+          headers:
+            Retry-After:
+              description: Ожидание повторной отправки в секундах
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: rate_limit_exceeded }
+                      message: { type: string }
+                      retry_after: { type: integer, minimum: 1 }
+        '503':
+          description: Отправка письма недоступна (mail_unavailable)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/email/verify:
+    post:
+      tags: [Auth]
+      summary: Войти по коду или создать аккаунт при первом входе
+      description: Код действует 10 минут, доступно 5 попыток. При первом входе имя берётся из email и доступно для изменения в профиле.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challenge_id, code]
+              properties:
+                challenge_id: { type: string }
+                code: { type: string, pattern: '^[0-9]{6}$' }
+      responses:
+        '200':
+          description: Сессия создана, refresh_token установлен в HttpOnly cookie
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400':
+          description: Некорректные данные (validation_error) или неверный, использованный, истёкший код (invalid_code)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+
+  /auth/google:
+    get:
+      tags: [Auth]
+      summary: Начать вход через Google
+      description: Перенаправляет браузер на выбор Google-аккаунта. Использует HttpOnly SameSite=Lax cookie, одноразовые state и nonce, PKCE.
+      responses:
+        '302':
+          description: Перенаправление на Google или на страницу входа с ошибкой настройки
+          headers:
+            Location: { schema: { type: string } }
+
+  /auth/google/callback:
+    get:
+      tags: [Auth]
+      summary: Завершить вход через Google
+      description: Код обменивается на сервере. Google-аккаунт связывается по sub. После успешного входа устанавливается refresh-cookie и браузер перенаправляется в профиль.
+      parameters:
+        - { name: state, in: query, schema: { type: string } }
+        - { name: code, in: query, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+      responses:
+        '302':
+          description: Перенаправление в профиль или на страницу входа с параметром google_error
+          headers:
+            Location: { schema: { type: string } }

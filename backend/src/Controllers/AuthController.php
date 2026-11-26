@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Auth;
+use App\Core\Database;
+use App\Core\CodeMailer;
 use App\Core\RateLimiter;
 use App\Core\Request;
 use App\Core\Response;
@@ -80,6 +82,134 @@ class AuthController
         }
 
         $this->respondWithSession($user, 200);
+    }
+
+    public function requestEmailCode(Request $request): void
+    {
+        $email = $request->input('email');
+        if (!is_string($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            Response::error('validation_error', 'Введите корректный email', 400);
+        }
+        $email = mb_strtolower(trim($email));
+        $this->enforceRateLimit('email_code', 5, 600);
+        $pdo = Database::connection();
+        $id = bin2hex(random_bytes(24));
+        $code = (string) random_int(100000, 999999);
+        $hash = hash_hmac('sha256', $id . ':' . $code, \App\Core\Config::get()['jwt_secret']);
+        // Reserve the email while sending, so concurrent requests cannot send twice.
+        $pdo->exec('BEGIN IMMEDIATE');
+        try {
+            $pdo->prepare('DELETE FROM email_login_codes WHERE expires_at <= ?')->execute([time()]);
+            $stmt = $pdo->prepare('SELECT MAX(expires_at) FROM email_login_codes WHERE email = ?');
+            $stmt->execute([$email]);
+            $retryAfter = max(0, (int) $stmt->fetchColumn() - time() - 540);
+            if ($retryAfter > 0) {
+                $pdo->exec('COMMIT');
+                header('Retry-After: ' . $retryAfter);
+                Response::json(['error' => [
+                    'code' => 'rate_limit_exceeded',
+                    'message' => 'Повторная отправка доступна через ' . $retryAfter . ' сек.',
+                    'retry_after' => $retryAfter,
+                ]], 429);
+            }
+            $pdo->prepare('INSERT INTO email_login_codes (id, email, code_hash, expires_at) VALUES (?, ?, ?, ?)')
+                ->execute([$id, $email, $hash, time() + 600]);
+            $pdo->exec('COMMIT');
+        } catch (\Throwable $e) {
+            $pdo->exec('ROLLBACK');
+            throw $e;
+        }
+        try {
+            CodeMailer::send($email, $code);
+        } catch (\Throwable $e) {
+            $pdo->prepare('DELETE FROM email_login_codes WHERE id = ?')->execute([$id]);
+            error_log('Email login delivery failed: ' . $e->getMessage());
+            Response::error('mail_unavailable', 'Не удалось отправить письмо. Попробуйте позже', 503);
+        }
+        // Keep the newest request only after its delivery succeeds.
+        $pdo->prepare('DELETE FROM email_login_codes WHERE email = ? AND id != ?')->execute([$email, $id]);
+        Response::json(['challenge_id' => $id, 'expires_in' => 600, 'resend_after' => 60]);
+    }
+
+    public function verifyEmailCode(Request $request): void
+    {
+        $id = $request->input('challenge_id');
+        $code = $request->input('code');
+        if (!is_string($id) || !preg_match('/^[a-f0-9]{48}$/D', $id)
+            || !is_string($code) || !preg_match('/^[0-9]{6}$/D', $code)) {
+            Response::error('validation_error', 'Введите шестизначный код', 400);
+        }
+        $this->enforceRateLimit('verify_email_code', 30, 600);
+        $pdo = Database::connection();
+        $pdo->exec('BEGIN IMMEDIATE');
+        try {
+            $stmt = $pdo->prepare('SELECT * FROM email_login_codes WHERE id = ?');
+            $stmt->execute([$id]);
+            $challenge = $stmt->fetch();
+            $valid = $challenge && (int) $challenge['expires_at'] > time()
+                && (int) $challenge['attempts'] < 5;
+            if ($valid) {
+                $pdo->prepare('UPDATE email_login_codes SET attempts = attempts + 1 WHERE id = ?')->execute([$id]);
+                $hash = hash_hmac('sha256', $id . ':' . $code, \App\Core\Config::get()['jwt_secret']);
+                $valid = hash_equals($challenge['code_hash'], $hash);
+            }
+            if (!$valid) {
+                $pdo->exec('COMMIT');
+                Response::error('invalid_code', 'Код неверен или истёк. Запросите новый код', 400);
+            }
+            $user = UserModel::findByEmail($challenge['email']);
+            if ($user === null) {
+                $userId = UserModel::create(
+                    $challenge['email'],
+                    password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT),
+                    explode('@', $challenge['email'], 2)[0],
+                );
+                $user = UserModel::findById($userId);
+            }
+            $pdo->prepare('DELETE FROM email_login_codes WHERE id = ?')->execute([$id]);
+            $pdo->exec('COMMIT');
+        } catch (\Throwable $e) {
+            $pdo->exec('ROLLBACK');
+            throw $e;
+        }
+        $this->respondWithSession($user, 200);
+    }
+
+    public function googleStart(Request $request): void
+    {
+        try {
+            $url = \App\Core\GoogleOAuth::authorizationUrl();
+        } catch (\Throwable $error) {
+            $this->googleRedirect('google_not_configured');
+        }
+        header('Cache-Control: no-store');
+        header('Referrer-Policy: no-referrer');
+        header('Location: ' . $url, true, 302);
+        exit;
+    }
+
+    public function googleCallback(Request $request): void
+    {
+        try {
+            $claims = \App\Core\GoogleOAuth::authenticate($request);
+            $user = UserModel::findOrCreateGoogleUser($claims);
+            $this->setRefreshCookie($this->issueAndStoreRefreshToken((int) $user['id']));
+        } catch (\Throwable $error) {
+            $knownErrors = ['google_invalid_state', 'google_cancelled', 'google_email_link_required'];
+            $code = in_array($error->getMessage(), $knownErrors, true) ? $error->getMessage() : 'google_unavailable';
+            $this->googleRedirect($code);
+        }
+        $this->googleRedirect();
+    }
+
+    private function googleRedirect(?string $error = null): never
+    {
+        $frontend = rtrim(\App\Core\GoogleOAuth::config()['frontend_url'], '/');
+        $path = $error === null ? '/profile' : '/login?google_error=' . rawurlencode($error);
+        header('Cache-Control: no-store');
+        header('Referrer-Policy: no-referrer');
+        header('Location: ' . $frontend . $path, true, 302);
+        exit;
     }
 
     public function refresh(Request $request): void
@@ -169,6 +299,51 @@ class AuthController
     {
         $user = Auth::requireAuth($request);
         Response::json(['user' => UserModel::toPublic($user)]);
+    }
+
+    public function updateProfile(Request $request): void
+    {
+        $user = Auth::requireAuth($request);
+        $data = $request->all();
+
+        $errors = Validator::validate($data, [
+            'name' => ['required'],
+            'email' => ['required', 'email'],
+        ]);
+        if ($errors !== []) {
+            Response::error('validation_error', 'Проверьте введённые данные', 400);
+        }
+
+        $existing = UserModel::findByEmail($data['email']);
+        if ($existing !== null && (int) $existing['id'] !== (int) $user['id']) {
+            Response::error('email_taken', 'Этот email уже зарегистрирован', 409);
+        }
+
+        UserModel::updateProfile((int) $user['id'], (string) $data['name'], (string) $data['email']);
+
+        Response::json(['user' => UserModel::toPublic(UserModel::findById((int) $user['id']))]);
+    }
+
+    public function updatePassword(Request $request): void
+    {
+        $user = Auth::requireAuth($request);
+        $data = $request->all();
+
+        $errors = Validator::validate($data, [
+            'current_password' => ['required'],
+            'new_password' => ['required', 'min:8'],
+        ]);
+        if ($errors !== []) {
+            Response::error('validation_error', 'Проверьте введённые данные', 400);
+        }
+
+        if (!password_verify((string) $data['current_password'], $user['password_hash'])) {
+            Response::error('invalid_credentials', 'Неверный текущий пароль', 401);
+        }
+
+        UserModel::updatePassword((int) $user['id'], password_hash((string) $data['new_password'], PASSWORD_DEFAULT));
+
+        Response::noContent();
     }
 
     private function respondWithSession(array $user, int $status): void

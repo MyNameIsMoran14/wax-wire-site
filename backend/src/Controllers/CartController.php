@@ -7,7 +7,6 @@ namespace App\Controllers;
 use App\Core\Auth;
 use App\Core\Request;
 use App\Core\Response;
-use App\Core\Validator;
 use App\Models\CartModel;
 use App\Models\ProductModel;
 
@@ -24,16 +23,11 @@ class CartController
         $user = Auth::requireAuth($request);
 
         $data = $request->all();
-        $errors = Validator::validate($data, [
-            'product_id' => ['required', 'numeric'],
-            'quantity' => ['numeric'],
-        ]);
-        if ($errors !== []) {
+        $productId = $data['product_id'] ?? null;
+        $quantity = array_key_exists('quantity', $data) ? $data['quantity'] : 1;
+        if (!is_int($productId) || $productId < 1 || !is_int($quantity) || $quantity < 1) {
             Response::error('validation_error', 'Проверьте введённые данные', 400);
         }
-
-        $productId = (int) $data['product_id'];
-        $quantity = isset($data['quantity']) ? max(1, (int) $data['quantity']) : 1;
 
         $product = ProductModel::findById($productId);
         if ($product === null) {
@@ -63,12 +57,11 @@ class CartController
         $pid = (int) $productId;
 
         $data = $request->all();
-        $errors = Validator::validate($data, ['quantity' => ['required', 'numeric']]);
-        if ($errors !== [] || (int) $data['quantity'] < 1) {
+        $quantity = $data['quantity'] ?? null;
+        if (!is_int($quantity) || $quantity < 1) {
             Response::error('validation_error', 'Проверьте введённые данные', 400);
         }
 
-        $quantity = (int) $data['quantity'];
         $product = ProductModel::findById($pid);
         if ($product !== null && $quantity > (int) $product['stock']) {
             Response::error('insufficient_stock', 'Недостаточно товара на складе', 409);

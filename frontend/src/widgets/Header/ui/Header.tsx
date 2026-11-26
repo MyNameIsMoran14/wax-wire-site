@@ -1,3 +1,4 @@
+import { resolveAssetUrl } from '@/shared/config/env'
 import { KeyboardArrowDown } from '@mui/icons-material'
 import { AppBar, Avatar, Badge, Button, InputBase, Menu, MenuItem, Stack, Toolbar, Typography } from '@mui/material'
 import { type FormEvent, useState } from 'react'
@@ -137,6 +138,8 @@ export function Header() {
                 }}
               >
                 <Avatar
+                  src={resolveAssetUrl(user.avatar_url ?? null) ?? undefined}
+                  alt={user.name}
                   sx={{
                     width: 32,
                     height: 32,
@@ -194,6 +197,19 @@ export function Header() {
                   }}
                 >
                   Мои заказы
+                </MenuItem>
+                <MenuItem
+                  component={RouterLink}
+                  to="/profile"
+                  onClick={() => setMenuAnchor(null)}
+                  sx={{
+                    borderRadius: 1.5,
+                    fontWeight: 500,
+                    transition: 'background-color 300ms ease, color 300ms ease',
+                    '&:hover': { bgcolor: 'rgba(140,47,39,0.08)', color: '#8C2F27' },
+                  }}
+                >
+                  Профиль
                 </MenuItem>
                 {user.role === 'admin' && (
                   <MenuItem

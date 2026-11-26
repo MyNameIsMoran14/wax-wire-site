@@ -6,6 +6,7 @@ interface AuthState {
   user: User | null
   status: 'idle' | 'checking' | 'authenticated' | 'guest'
   setAuth: (user: User, accessToken: string) => void
+  setUser: (user: User) => void
   clearAuth: () => void
   setChecking: () => void
   setGuest: () => void
@@ -18,6 +19,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     tokenStorage.set(accessToken)
     set({ user, status: 'authenticated' })
   },
+  // No new token involved — just the profile fields changing underneath an
+  // already-authenticated session (name/email edit).
+  setUser: (user) => set({ user }),
   clearAuth: () => {
     tokenStorage.set(null)
     set({ user: null, status: 'guest' })

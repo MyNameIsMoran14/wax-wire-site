@@ -29,3 +29,17 @@ export function useCreateOrder() {
     },
   })
 }
+
+// Cancelling restores stock server-side, so catalog/product queries would
+// show stale (too-low) stock until something else refetched them.
+export function useCancelOrder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => orderApi.cancelOrder(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ORDERS_KEY })
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['product'] })
+    },
+  })
+}

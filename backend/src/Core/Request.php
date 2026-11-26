@@ -21,10 +21,16 @@ class Request
 
         $this->query = $_GET;
 
-        $raw = file_get_contents('php://input') ?: '';
-        $decoded = $raw === '' ? [] : json_decode($raw, true);
-        $this->body = is_array($decoded) ? $decoded : [];
-
+        $raw = (string) file_get_contents('php://input');
+        $contentType = strtolower(trim(explode(';', $_SERVER['CONTENT_TYPE'] ?? '', 2)[0]));
+        $body = [];
+        if ($raw !== '' && in_array($contentType, ['', 'application/json'], true)) {
+            $body = json_decode($raw, true);
+            if (!is_array($body) || !str_starts_with(ltrim($raw), '{')) {
+                Response::error('invalid_request_body', 'Ожидается корректный JSON-объект', 400);
+            }
+        }
+        $this->body = $body;
         $this->headers = function_exists('getallheaders') ? (getallheaders() ?: []) : [];
     }
 
