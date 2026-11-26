@@ -1,2 +1,8 @@
 database/*.sqlite
 storage/
+
+src/Config/mail.local.php
+
+src/Config/google.local.php
+
+public/uploads/profiles/

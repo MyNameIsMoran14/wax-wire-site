@@ -101,6 +101,8 @@ components:
         email: { type: string, format: email, example: liz@example.com }
         name: { type: string, example: Елизавета }
         role: { type: string, enum: [user, admin], example: user }
+        avatar_url: { type: string, nullable: true }
+        banner_url: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
 
     UserResponse:
@@ -360,6 +362,47 @@ paths:
         '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '409': { description: Email занят (email_taken) }
+
+  /auth/me/images/{kind}:
+    parameters:
+      - in: path
+        name: kind
+        required: true
+        schema: { type: string, enum: [avatar, banner] }
+    post:
+      tags: [Profile]
+      summary: Загрузить или заменить аватар/баннер (JPEG, PNG, WebP до 5 МБ и 40 мегапикселей)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, format: binary }
+      responses:
+        '200':
+          description: Оформление сохранено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Неизвестный тип изображения }
+    delete:
+      tags: [Profile]
+      summary: Сбросить аватар или баннер
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: Изображение удалено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Неизвестный тип изображения }
 
   /auth/me/password:
     patch:
@@ -842,3 +885,108 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+
+  /auth/email/code:
+    post:
+      tags: [Auth]
+      summary: Отправить одноразовый код входа на email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Письмо принято сервером отправки. Повторная отправка через 60 секунд
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [challenge_id, expires_in, resend_after]
+                properties:
+                  challenge_id: { type: string }
+                  expires_in: { type: integer, example: 600 }
+                  resend_after: { type: integer, example: 60 }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '429':
+          description: Лимит запросов. При ожидании повторной отправки error.retry_after содержит оставшееся число секунд
+          headers:
+            Retry-After:
+              description: Ожидание повторной отправки в секундах
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code: { type: string, example: rate_limit_exceeded }
+                      message: { type: string }
+                      retry_after: { type: integer, minimum: 1 }
+        '503':
+          description: Отправка письма недоступна (mail_unavailable)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/email/verify:
+    post:
+      tags: [Auth]
+      summary: Войти по коду или создать аккаунт при первом входе
+      description: Код действует 10 минут, доступно 5 попыток. При первом входе имя берётся из email и доступно для изменения в профиле.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challenge_id, code]
+              properties:
+                challenge_id: { type: string }
+                code: { type: string, pattern: '^[0-9]{6}$' }
+      responses:
+        '200':
+          description: Сессия создана, refresh_token установлен в HttpOnly cookie
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400':
+          description: Некорректные данные (validation_error) или неверный, использованный, истёкший код (invalid_code)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+
+  /auth/google:
+    get:
+      tags: [Auth]
+      summary: Начать вход через Google
+      description: Перенаправляет браузер на выбор Google-аккаунта. Использует HttpOnly SameSite=Lax cookie, одноразовые state и nonce, PKCE.
+      responses:
+        '302':
+          description: Перенаправление на Google или на страницу входа с ошибкой настройки
+          headers:
+            Location: { schema: { type: string } }
+
+  /auth/google/callback:
+    get:
+      tags: [Auth]
+      summary: Завершить вход через Google
+      description: Код обменивается на сервере. Google-аккаунт связывается по sub. После успешного входа устанавливается refresh-cookie и браузер перенаправляется в профиль.
+      parameters:
+        - { name: state, in: query, schema: { type: string } }
+        - { name: code, in: query, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+      responses:
+        '302':
+          description: Перенаправление в профиль или на страницу входа с параметром google_error
+          headers:
+            Location: { schema: { type: string } }

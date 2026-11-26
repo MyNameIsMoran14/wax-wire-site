@@ -1,3 +1,4 @@
+import { resolveAssetUrl } from '@/shared/config/env'
 import { KeyboardArrowDown } from '@mui/icons-material'
 import { AppBar, Avatar, Badge, Button, InputBase, Menu, MenuItem, Stack, Toolbar, Typography } from '@mui/material'
 import { type FormEvent, useState } from 'react'
@@ -137,6 +138,8 @@ export function Header() {
                 }}
               >
                 <Avatar
+                  src={resolveAssetUrl(user.avatar_url ?? null) ?? undefined}
+                  alt={user.name}
                   sx={{
                     width: 32,
                     height: 32,

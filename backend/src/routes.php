@@ -8,6 +8,7 @@ use App\Controllers\Admin\GenreController as AdminGenreController;
 use App\Controllers\Admin\OrderController as AdminOrderController;
 use App\Controllers\Admin\ProductController as AdminProductController;
 use App\Controllers\AuthController;
+use App\Controllers\ProfileImageController;
 use App\Controllers\CartController;
 use App\Controllers\FavoriteController;
 use App\Controllers\GenreController;
@@ -23,6 +24,8 @@ $router->post('/api/v1/auth/logout', [AuthController::class, 'logout']);
 $router->get('/api/v1/auth/me', [AuthController::class, 'me']);
 $router->patch('/api/v1/auth/me', [AuthController::class, 'updateProfile']);
 $router->patch('/api/v1/auth/me/password', [AuthController::class, 'updatePassword']);
+$router->post('/api/v1/auth/me/images/{kind}', [ProfileImageController::class, 'upload']);
+$router->delete('/api/v1/auth/me/images/{kind}', [ProfileImageController::class, 'remove']);
 
 $router->get('/api/v1/genres', [GenreController::class, 'index']);
 $router->get('/api/v1/products', [ProductController::class, 'index']);
@@ -55,3 +58,9 @@ $router->patch('/api/v1/orders/{id}/cancel', [OrderController::class, 'cancel'])
 
 $router->get('/api/v1/admin/orders', [AdminOrderController::class, 'index']);
 $router->patch('/api/v1/admin/orders/{id}/status', [AdminOrderController::class, 'updateStatus']);
+
+$router->post('/api/v1/auth/email/code', [AuthController::class, 'requestEmailCode']);
+$router->post('/api/v1/auth/email/verify', [AuthController::class, 'verifyEmailCode']);
+
+$router->get('/api/v1/auth/google', [AuthController::class, 'googleStart']);
+$router->get('/api/v1/auth/google/callback', [AuthController::class, 'googleCallback']);

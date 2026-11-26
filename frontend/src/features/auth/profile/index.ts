@@ -1,2 +1,2 @@
-export { useUpdateProfile, useUpdatePassword } from './model/useProfile'
-export type { UpdatePasswordPayload, UpdateProfilePayload } from './api/profileApi'
+export { useUpdateProfile, useUpdatePassword, useUpdateProfileImage } from './model/useProfile'
+export type { ProfileImageKind, UpdatePasswordPayload, UpdateProfilePayload } from './api/profileApi'
